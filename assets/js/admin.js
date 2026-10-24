@@ -182,7 +182,7 @@
 
     list.innerHTML = posts
       .map(function (post, index) {
-        const isOwner = post.author === currentUser;
+        const isOwner = !post.author || post.author === currentUser;
         const canDelete = isOwner || isAdmin;
         const authorLabel = post.authorName || (post.author || "佚名");
 
@@ -209,7 +209,7 @@
       });
       if (!post) return;
 
-      const isOwner = post.author === currentUser;
+      const isOwner = !post.author || post.author === currentUser;
       const isOthersPost = !isOwner && isAdmin;
 
       // 站长删除他人博文须说明缘由，否则不予删除
@@ -245,6 +245,8 @@
           (result.warning ? "（" + result.warning + "）" : ""),
           result.warning ? "warn" : "success"
         );
+      }).catch(function (error) {
+        setMessage(messageNode, "删除失败：" + (error && error.message ? error.message : "未知错误"), "error");
       });
     };
   }
@@ -370,6 +372,8 @@
           "资源已删除。" + (result.warning ? "（" + result.warning + "）" : ""),
           result.warning ? "warn" : "success"
         );
+      }).catch(function (error) {
+        setMessage(messageNode, "删除失败：" + (error && error.message ? error.message : "未知错误"), "error");
       });
     };
   }
