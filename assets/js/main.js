@@ -127,6 +127,11 @@
   }
 
   /* ---------- 文章卡片 ---------- */
+  function authorLabel(post) {
+    const name = post.authorName || post.author;
+    return name ? '<span class="post-author">· ' + escapeHTML(name) + "</span>" : "";
+  }
+
   function postCard(post, index, delay) {
     return [
       '<article class="post-card reveal" style="--soft:', escapeHTML(post.soft), ";--accent:", escapeHTML(post.accent), ";--delay:", delay, 'ms">',
@@ -137,6 +142,7 @@
       "</span>",
       '<div class="post-card-body">',
       '<div class="post-meta"><span class="tag">', escapeHTML(post.category), "</span>",
+      authorLabel(post),
       '<time datetime="', escapeHTML(post.date), '">', escapeHTML(post.dateLabel), "</time></div>",
       "<h3>", escapeHTML(post.title), "</h3>",
       "<p>", escapeHTML(post.excerpt), "</p>",
@@ -196,6 +202,7 @@
         "</a>",
         '<div class="featured-copy">',
         '<div class="post-meta"><span class="tag">', escapeHTML(post.category), "</span>",
+        authorLabel(post),
         '<time datetime="', escapeHTML(post.date), '">', escapeHTML(post.dateLabel), "</time></div>",
         "<h2>", escapeHTML(post.title), "</h2>",
         "<p>", escapeHTML(post.excerpt), "</p>",
@@ -453,6 +460,7 @@
     if (meta) {
       meta.innerHTML = [
         '<span class="tag">', escapeHTML(post.category), "</span>",
+        authorLabel(post),
         '<time datetime="', escapeHTML(post.date), '">', escapeHTML(post.dateLabel), "</time>",
         "<span>", post.readTime, " 分钟阅读</span>"
       ].join("");

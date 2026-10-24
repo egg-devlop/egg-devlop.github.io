@@ -1020,6 +1020,12 @@ button {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--ink-faint);
+  flex-wrap: wrap;
+}
+
+.post-author {
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .tag {
