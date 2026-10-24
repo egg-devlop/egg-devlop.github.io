@@ -340,12 +340,13 @@
 
     list.innerHTML = resources
       .map(function (resource, index) {
+        const href = resource.filePath || resource.fileData || "#";
         return [
           '<div class="manage-item">',
           '<span class="manage-number">', pad(index + 1), "</span>",
           '<div class="manage-main"><strong>', escapeHTML(resource.name), "</strong>",
           "<span>", escapeHTML(resource.category), " · ", escapeHTML(resource.type), " · ", escapeHTML(resource.fileName), "</span></div>",
-          '<a class="manage-open" href="', escapeHTML(resource.fileData), '" download="', escapeHTML(resource.fileName), '">下载</a>',
+          '<a class="manage-open" href="', escapeHTML(href), '" download="', escapeHTML(resource.fileName), '">下载</a>',
           '<button class="manage-delete" type="button" data-delete-resource="', escapeHTML(resource.id), '">删除</button>',
           "</div>"
         ].join("");
@@ -416,7 +417,7 @@
         return;
       }
       if (file.size > STORE.MAX_FILE_SIZE) {
-        setMessage(message, "文件超过 2MB，请压缩后再上传。", "error");
+        setMessage(message, "文件超过 " + STORE.formatBytes(STORE.MAX_FILE_SIZE) + "，请压缩后再上传。", "error");
         return;
       }
       if (!name) {
@@ -427,62 +428,56 @@
 
       if (submit) {
         submit.disabled = true;
-        submit.textContent = "正在读取文件…";
+        submit.textContent = "正在上传…";
       }
-      setMessage(message, "正在将文件保存到浏览器，请稍候…", "success");
+      setMessage(message, "正在上传文件到仓库，请稍候…", "success");
 
-      const reader = new FileReader();
-      reader.onload = function () {
-        const extension = file.name.indexOf(".") !== -1
-          ? file.name.split(".").pop().toUpperCase().slice(0, 10)
-          : "FILE";
+      const extension = file.name.indexOf(".") !== -1
+        ? file.name.split(".").pop().toUpperCase().slice(0, 10)
+        : "FILE";
 
-        const resource = {
-          id: STORE.makeId("file"),
-          name: name,
-          category: category,
-          desc: descInput || "资源文件：" + file.name,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type || "application/octet-stream",
-          fileData: String(reader.result),
-          type: extension + " · " + STORE.formatBytes(file.size),
-          icon: STORE.resourceIcon(category),
-          createdAt: Date.now()
-        };
-
-        STORE.addResource(resource).then(function (result) {
-          if (submit) {
-            submit.disabled = false;
-            submit.textContent = "上传资源";
-          }
-
-          if (!result.ok) {
-            setMessage(message, result.message, "error");
-            return;
-          }
-
-          form.reset();
-          if (fileInfo) {
-            fileInfo.textContent = "尚未选择文件";
-            fileInfo.classList.remove("is-error");
-          }
-          const text = "资源“" + name + "”已上传" +
-            (result.warning ? "（" + result.warning + "）" : "，可在资源页下载。");
-          setMessage(message, text, result.warning ? "warn" : "success");
-          renderResources(message);
-        });
+      const metadata = {
+        id: STORE.makeId("file"),
+        name: name,
+        category: category,
+        desc: descInput || "资源文件：" + file.name,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || "application/octet-stream",
+        type: extension + " · " + STORE.formatBytes(file.size),
+        icon: STORE.resourceIcon(category),
+        author: session ? session.username : "",
+        authorName: session ? (session.displayName || session.username) : "匿名",
+        createdAt: Date.now()
       };
 
-      reader.onerror = function () {
+      STORE.addResource(metadata, file).then(function (result) {
         if (submit) {
           submit.disabled = false;
           submit.textContent = "上传资源";
         }
-        setMessage(message, "文件读取失败，请重新选择后再试。", "error");
-      };
 
-      reader.readAsDataURL(file);
+        if (!result.ok) {
+          setMessage(message, result.message, "error");
+          return;
+        }
+
+        form.reset();
+        if (fileInfo) {
+          fileInfo.textContent = "尚未选择文件";
+          fileInfo.classList.remove("is-error");
+        }
+        const text = "资源“" + name + "”已上传" +
+          (result.warning ? "（" + result.warning + "）" : "，可在资源页下载。");
+        setMessage(message, text, result.warning ? "warn" : "success");
+        renderResources(message);
+      }).catch(function (error) {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = "上传资源";
+        }
+        setMessage(message, "上传失败：" + (error && error.message ? error.message : "未知错误"), "error");
+      });
     });
   }
 

@@ -306,7 +306,7 @@
     const theme = resourceTheme(resource.category);
     const icon = resource.icon || (STORE ? STORE.resourceIcon(resource.category) : "bolt");
     return [
-      '<a class="resource-mini reveal" href="', escapeHTML(resource.fileData || "#"), '" download="', escapeHTML(resource.fileName || resource.name), '"',
+      '<a class="resource-mini reveal" href="', escapeHTML(resource.filePath || resource.fileData || "#"), '" download="', escapeHTML(resource.fileName || resource.name), '"',
       ' style="--icon-bg:', theme.bg, ";--icon-color:", theme.color, '">',
       '<span class="resource-mini-icon">', ICONS[icon] || ICONS.bolt, "</span>",
       '<div class="resource-mini-body"><span>', escapeHTML(resource.category), " · ", escapeHTML(resource.type), "</span>",
@@ -399,7 +399,7 @@
               '<span class="resource-cat">', escapeHTML(item.category), "</span></div>",
               "<h3>", escapeHTML(item.name), "</h3><p>", escapeHTML(item.desc), "</p>",
               '<div class="resource-foot"><span class="resource-type">', escapeHTML(item.type), "</span>",
-              '<a class="resource-link" href="', escapeHTML(item.fileData || "#"), '" download="', escapeHTML(item.fileName || item.name), '">下载文件 <span aria-hidden="true">↓</span></a></div>',
+              '<a class="resource-link" href="', escapeHTML(item.filePath || item.fileData || "#"), '" download="', escapeHTML(item.fileName || item.name), '">下载文件 <span aria-hidden="true">↓</span></a></div>',
               "</article>"
             ].join("");
           })

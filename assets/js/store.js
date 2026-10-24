@@ -19,7 +19,7 @@
   const DELETIONS_KEY = "eggstation.deletions.v1";
   const TOKEN_KEY = "eggstation.github_token.v1";
 
-  const MAX_FILE_SIZE = 2 * 1024 * 1024;
+  const MAX_FILE_SIZE = 100 * 1024 * 1024; // GitHub Contents API 单文件上限 100MB
 
   // GitHub 仓库配置：数据文件提交到这里
   const REPO_OWNER = "egg-devlop";
@@ -27,6 +27,7 @@
   const REPO_BRANCH = "main";
   const POSTS_PATH = "assets/data/posts.json";
   const RESOURCES_PATH = "assets/data/resources.json";
+  const RESOURCES_DIR = "assets/resources";
 
   const POST_STYLES = {
     前端开发: { accent: "#5a8fa9", soft: "#e5eff3" },
@@ -159,24 +160,130 @@
     });
   }
 
-  function addResource(resource) {
+  // 生成安全的文件名：保留扩展名，替换非法字符
+  function safeFileName(name) {
+    const parts = String(name || "file").split(".");
+    const ext = parts.length > 1 ? "." + parts.pop().toLowerCase() : "";
+    const base = parts.join(".").replace(/[^\w\u4e00-\u9fa5-]+/g, "_").slice(0, 40) || "file";
+    return base + ext;
+  }
+
+  // 把 File 对象转为 base64 字符串（不含 data: 前缀）
+  function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        const result = String(reader.result || "");
+        const comma = result.indexOf(",");
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      reader.onerror = function () {
+        reject(new Error("读取文件失败"));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 上传资源文件到仓库的 assets/resources/ 目录
+  function uploadResourceFile(file, resourceId) {
+    const fileName = safeFileName(file.name);
+    const path = RESOURCES_DIR + "/" + resourceId + "-" + fileName;
+    return fileToBase64(file).then(function (b64) {
+      return commitFile(path, "", "上传资源：" + file.name, b64, true).then(function () {
+        return path;
+      });
+    });
+  }
+
+  // 从仓库删除资源文件
+  function deleteResourceFile(filePath) {
+    if (!filePath) return Promise.resolve();
+    const token = getGithubToken();
+    if (!token) return Promise.resolve();
+
+    return getFileSha(filePath).then(function (sha) {
+      if (!sha) return null; // 文件不存在，无需删除
+      const url =
+        "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
+        "/contents/" + filePath;
+      return fetch(url, {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Accept": "application/vnd.github+json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: "删除资源文件",
+          sha: sha,
+          branch: REPO_BRANCH
+        })
+      }).then(function (response) {
+        if (!response.ok && response.status !== 404) {
+          return response.json().catch(function () { return {}; }).then(function (data) {
+            throw new Error(data.message || "GitHub API " + response.status);
+          });
+        }
+        return null;
+      });
+    });
+  }
+
+  // 添加资源：metadata 为元数据，file 为 File 对象（可选）
+  function addResource(metadata, file) {
+    const resource = Object.assign({}, metadata);
     const resources = getResources();
     resources.unshift(resource);
     resourcesCache = resources;
-    const local = writeArray(RESOURCES_KEY, resources);
-    if (!local.ok) return Promise.resolve(local);
 
-    return commitResources().then(function () {
-      return { ok: true };
-    }).catch(function (error) {
-      return {
-        ok: true,
-        warning: "已保存到本地，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
-      };
+    const saveLocal = function () {
+      return writeArray(RESOURCES_KEY, resources);
+    };
+
+    // 有 Token 且有文件：上传到仓库，resources.json 只存文件路径
+    if (file && hasGithubToken()) {
+      return uploadResourceFile(file, resource.id).then(function (filePath) {
+        resource.filePath = filePath;
+        delete resource.fileData; // 不再内嵌 base64
+        resourcesCache = resources; // 已含 filePath
+        const local = saveLocal();
+        if (!local.ok) return local;
+        return commitResources().then(function () {
+          return { ok: true };
+        }).catch(function (error) {
+          return {
+            ok: true,
+            warning: "文件已上传，但元数据同步失败：" + (error && error.message ? error.message : "未知错误")
+          };
+        });
+      }).catch(function (error) {
+        // 上传失败，回退到 base64 本地存储
+        return fileToBase64(file).then(function (b64) {
+          resource.fileData = "data:" + (file.type || "application/octet-stream") + ";base64," + b64;
+          delete resource.filePath;
+          resourcesCache = resources;
+          const local = saveLocal();
+          if (!local.ok) return local;
+          return {
+            ok: true,
+            warning: "上传到仓库失败，已保存到本地（他人不可见）：" + (error && error.message ? error.message : "未知错误")
+          };
+        });
+      });
+    }
+
+    // 无 Token 或无文件：仅本地存储
+    const local = saveLocal();
+    if (!local.ok) return Promise.resolve(local);
+    return Promise.resolve({
+      ok: true,
+      warning: file ? "未配置 GitHub Token，资源仅保存在本地（他人不可见）。" : undefined
     });
   }
 
   function removeResource(id) {
+    const target = getResources().find(function (r) { return r.id === id; });
     const resources = getResources().filter(function (resource) {
       return resource.id !== id;
     });
@@ -184,13 +291,27 @@
     const local = writeArray(RESOURCES_KEY, resources);
     if (!local.ok) return Promise.resolve(local);
 
-    return commitResources().then(function () {
-      return { ok: true };
+    // 先删除仓库中的文件，再更新 resources.json
+    const deleteFile = target && target.filePath ? deleteResourceFile(target.filePath) : Promise.resolve();
+    return deleteFile.then(function () {
+      return commitResources().then(function () {
+        return { ok: true };
+      }).catch(function (error) {
+        return {
+          ok: true,
+          warning: "已从本地删除，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
+        };
+      });
     }).catch(function (error) {
-      return {
-        ok: true,
-        warning: "已从本地删除，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
-      };
+      // 文件删除失败不影响元数据删除
+      return commitResources().then(function () {
+        return {
+          ok: true,
+          warning: "资源文件删除失败，但已从列表移除：" + (error && error.message ? error.message : "未知错误")
+        };
+      }).catch(function () {
+        return { ok: true };
+      });
     });
   }
 
@@ -252,14 +373,16 @@
     });
   }
 
-  function putFile(path, content, message, sha) {
+  // content 为文本时会自动 base64；若 rawBase64 为 true，则 content 视为已编码的 base64 字符串
+  function putFile(path, content, message, sha, rawBase64) {
     const token = getGithubToken();
     const url =
       "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
       "/contents/" + path;
+    const encoded = rawBase64 ? content : base64Encode(content);
     const body = {
       message: message,
-      content: base64Encode(content),
+      content: encoded,
       branch: REPO_BRANCH
     };
     if (sha) body.sha = sha;
@@ -276,7 +399,7 @@
     });
   }
 
-  function commitFile(path, content, message) {
+  function commitFile(path, content, message, rawBase64) {
     const token = getGithubToken();
     if (!token) {
       return Promise.reject(new Error("未配置 GitHub Token"));
@@ -284,7 +407,7 @@
 
     function tryCommit(retry) {
       return getFileSha(path).then(function (sha) {
-        return putFile(path, content, message, sha).then(function (response) {
+        return putFile(path, content, message, sha, rawBase64).then(function (response) {
           if (response.ok) {
             return response.json();
           }
