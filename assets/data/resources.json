@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "id": "file-mvm1hx9mv4w3d",
+    "name": "ADB工具",
+    "category": "开发工具",
+    "desc": "资源文件：platform-tools-latest-windows.zip",
+    "fileName": "platform-tools-latest-windows.zip",
+    "fileSize": 8044989,
+    "fileType": "application/x-zip-compressed",
+    "type": "ZIP · 7.7 MB",
+    "icon": "code",
+    "author": "eggdevlop@163.com",
+    "authorName": "蛋站长",
+    "createdAt": 1792824634283,
+    "filePath": "assets/resources/file-mvm1hx9mv4w3d-platform-tools-latest-windows.zip"
+  }
+]
