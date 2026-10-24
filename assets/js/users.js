@@ -27,8 +27,8 @@
   // 可登录账号列表。username 必须唯一。
   const USERS = [
     {
-      username: "站长",
-      passwordHash: "23d69530efb7a08186388b8a7696033a3c0e41b0a080cf9b088d932b0e77f690",
+      username: "eggdevlop@163.com",
+      passwordHash: "b59a49d644208d7d6bb77eafd1ddaa23127a5c637f8f02b0ecdfe95beb6d97ec",
       displayName: "鸡蛋站站长",
       role: "admin",
       bio: "负责写文章、整理资源，偶尔孵蛋。",
