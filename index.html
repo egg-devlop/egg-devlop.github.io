@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鸡蛋站 · 把想法孵化成看得见的东西</title>
+  <meta name="description" content="鸡蛋站是一个关于代码、设计与日常观察的小站。这里有博客、精选资源，以及一颗正在慢慢生长的蛋。">
+  <meta name="theme-color" content="#fff8ea">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="home">
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="鸡蛋站首页">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="38" height="38">
+            <path d="M24 3.5C15.9 3.5 7.5 15.3 7.5 28.2 7.5 38.4 15.3 44.5 24 44.5s16.5-6.1 16.5-16.3C40.5 15.3 32.1 3.5 24 3.5Z" fill="#F9C846"/>
+            <circle cx="19" cy="27" r="2" fill="#241f18"/>
+            <circle cx="29" cy="27" r="2" fill="#241f18"/>
+            <path d="M21 33c2 1.9 4 1.9 6 0" fill="none" stroke="#241f18" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>鸡蛋站</strong>
+          <small>EGG STATION</small>
+        </span>
+      </a>
+
+      <nav class="nav" id="primaryNav" aria-label="主导航">
+        <a href="index.html" aria-current="page">首页</a>
+        <a href="blog.html">博客</a>
+        <a href="resources.html">资源</a>
+        <a href="about.html">关于</a>
+        <a href="admin.html">发布</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="btn btn--primary btn--small" href="#subscribe">订阅周报</a>
+        <button class="nav-toggle" type="button" aria-label="打开导航菜单" aria-controls="primaryNav" aria-expanded="false">
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> 灵感孵化所 · EGG STATION</p>
+          <h1>把每个小想法，<br><span class="highlight">孵化</span>成看得见的东西。</h1>
+          <p class="lede">鸡蛋站是一个关于代码、设计与日常观察的小站。这里没有标准答案，只有一些正在破壳的念头，和把它们做出来的方法。</p>
+          <div class="hero-actions">
+            <a class="btn btn--primary" href="blog.html">
+              去博客逛逛
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </a>
+            <a class="btn btn--outline" href="resources.html">看看资源库</a>
+          </div>
+          <div class="hero-stats" aria-label="站点数据">
+            <div class="hero-stat"><strong data-stat-posts>00</strong><span>篇文章</span></div>
+            <div class="hero-stat"><strong data-stat-resources>00</strong><span>份资源</span></div>
+            <div class="hero-stat"><strong data-stat-post-categories>00</strong><span>个分类</span></div>
+          </div>
+        </div>
+
+        <div class="hero-stage">
+          <div class="stage-glow" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-ring--one" aria-hidden="true"></div>
+          <div class="orbit-ring orbit-ring--two" aria-hidden="true"></div>
+          <span class="stage-note" aria-hidden="true">EST. 2023<br>SLOWLY GROWING</span>
+
+          <div class="float-card float-card--idea" aria-hidden="true">
+            <span class="float-kicker">今日灵感</span>
+            <strong>把复杂的事，<br>拆成一颗颗小蛋。</strong>
+          </div>
+          <div class="float-card float-card--code" aria-hidden="true">
+            <code><i></i>while (curious) { make(); }</code>
+          </div>
+
+          <span class="speech-bubble" id="eggSpeech" aria-live="polite"></span>
+
+          <button class="hero-egg" id="heroEgg" type="button" aria-label="敲一敲这颗蛋">
+            <span class="egg-body">
+              <span class="egg-shine"></span>
+              <span class="egg-face" aria-hidden="true">
+                <span class="eye"></span>
+                <span class="eye"></span>
+                <span class="egg-mouth"></span>
+              </span>
+              <svg class="egg-crack" viewBox="0 0 208 262" aria-hidden="true">
+                <path d="M108 18 98 44l18 10-13 21 19 11-14 24"/>
+              </svg>
+            </span>
+            <span class="egg-hint">敲一下试试</span>
+          </button>
+
+          <div class="nest" aria-hidden="true"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 站内地图 -->
+    <section class="section section--tight">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">THE MAP · 站内地图</p>
+            <h2>一颗蛋的三面</h2>
+            <p>写下来、用起来、慢慢长大。三个页面，一条完整的孵化路径。</p>
+          </div>
+        </div>
+
+        <div class="pillars-grid">
+          <a class="pillar-card reveal" href="blog.html" style="--delay:0ms">
+            <span class="pillar-top">
+              <span class="pillar-index">01 / BLOG</span>
+              <span class="pillar-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/><path d="M8 7h8M8 11h5"/></svg>
+              </span>
+            </span>
+            <h3>博客</h3>
+            <p>记录想法破壳的过程：前端笔记、设计观察，还有一些没什么用但很开心的事。</p>
+            <span class="text-link">去读文章 <span aria-hidden="true">→</span></span>
+          </a>
+
+          <a class="pillar-card reveal" href="resources.html" style="--delay:80ms">
+            <span class="pillar-top">
+              <span class="pillar-index">02 / TOOLBOX</span>
+              <span class="pillar-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-2-2h-4l-2-2H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2Z"/><path d="M3 10h18"/></svg>
+              </span>
+            </span>
+            <h3>资源</h3>
+            <p>收藏真正顺手的工具和资料。每一份都尽量写清楚：它解决什么问题，什么时候用。</p>
+            <span class="text-link">打开工具箱 <span aria-hidden="true">→</span></span>
+          </a>
+
+          <a class="pillar-card reveal" href="about.html" style="--delay:160ms">
+            <span class="pillar-top">
+              <span class="pillar-index">03 / ABOUT</span>
+              <span class="pillar-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-4.4 0-7.5 5.8-7.5 10.3 0 4.9 3.4 7.7 7.5 7.7s7.5-2.8 7.5-7.7C19.5 8.8 16.4 3 12 3Z"/><path d="M9.5 13.5h.01M14.5 13.5h.01M10.5 16.5c1 .8 2 .8 3 0"/></svg>
+              </span>
+            </span>
+            <h3>关于</h3>
+            <p>认识这个有点慢的站长，看看鸡蛋站为什么开始，以及它想长成什么样子。</p>
+            <span class="text-link">认识站长 <span aria-hidden="true">→</span></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 最新文章 -->
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">FRESH FROM THE NEST · 破壳日记</p>
+            <h2>刚破壳的文章</h2>
+          </div>
+          <a class="text-link" href="blog.html">查看全部文章 <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="post-grid" data-home-posts></div>
+      </div>
+    </section>
+
+    <!-- 资源精选 -->
+    <section class="section section--tight">
+      <div class="container resource-spotlight">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">TOOLBOX · 顺手就好</p>
+            <h2>顺手的东西，<br>才值得留下。</h2>
+            <p>不追求最全，只留下真的会打开第二次的工具。用得上，比收藏得多更重要。</p>
+          </div>
+          <a class="text-link" href="resources.html">打开完整资源库 <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="resource-mini-list" data-home-resources></div>
+      </div>
+    </section>
+
+    <!-- 订阅 -->
+    <section class="section" id="subscribe">
+      <div class="container">
+        <div class="cta-band reveal">
+          <div class="cta-copy">
+            <p class="eyebrow">ONE EGG A WEEK</p>
+            <h2>每周一颗，刚刚好的灵感。</h2>
+            <p>一篇新文章、几件顺手的小工具，还有本周收集到的一点光。不打扰，随时可以离开。</p>
+          </div>
+          <form class="subscribe-form" data-subscribe-form>
+            <button class="btn btn--yolk" type="submit">订阅更新</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <a class="brand" href="index.html" aria-label="鸡蛋站首页">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="38" height="38">
+                <path d="M24 3.5C15.9 3.5 7.5 15.3 7.5 28.2 7.5 38.4 15.3 44.5 24 44.5s16.5-6.1 16.5-16.3C40.5 15.3 32.1 3.5 24 3.5Z" fill="#F9C846"/>
+                <circle cx="19" cy="27" r="2" fill="#241f18"/>
+                <circle cx="29" cy="27" r="2" fill="#241f18"/>
+                <path d="M21 33c2 1.9 4 1.9 6 0" fill="none" stroke="#241f18" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="brand-text">
+              <strong>鸡蛋站</strong>
+              <small>EGG STATION</small>
+            </span>
+          </a>
+          <p>一个关于代码、设计与日常观察的小站。愿每个不起眼的念头，都有机会破壳。</p>
+        </div>
+
+        <div class="footer-col">
+          <h4>栏目</h4>
+          <ul>
+            <li><a href="blog.html">博客</a></li>
+            <li><a href="resources.html">资源库</a></li>
+            <li><a href="about.html">关于</a></li>
+            <li><a href="admin.html">发布入口</a></li>
+            <li><a href="#subscribe">订阅周报</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>联络</h4>
+          <ul>
+            <li><a href="mailto:eggdevlop@163.com">写封信</a></li>
+            <li><a href="resources.html">资源库</a></li>
+            <li><span>RSS · 筹备中</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> 鸡蛋站 · 用 HTML、CSS 和一点好奇心搭成</span>
+        <span class="footer-sign">慢慢生长，持续破壳。</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/store.js" defer></script>
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
