@@ -49,6 +49,9 @@
   let resourcesCache = null;
   let dataReady = null; // Promise，数据加载完成后 resolve
 
+  // 提交锁：避免并发提交导致 sha 冲突
+  let commitLock = Promise.resolve();
+
   /* ---------- 本地存储读写 ---------- */
   function readArray(key) {
     try {
@@ -232,11 +235,13 @@
     const token = getGithubToken();
     const url =
       "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
-      "/contents/" + path + "?ref=" + REPO_BRANCH;
+      "/contents/" + path + "?ref=" + REPO_BRANCH + "&t=" + Date.now();
     return fetch(url, {
+      cache: "no-store",
       headers: {
         "Authorization": "Bearer " + token,
-        "Accept": "application/vnd.github+json"
+        "Accept": "application/vnd.github+json",
+        "If-None-Match": ""
       }
     }).then(function (response) {
       if (response.status === 404) return null; // 文件不存在
@@ -247,52 +252,79 @@
     });
   }
 
+  function putFile(path, content, message, sha) {
+    const token = getGithubToken();
+    const url =
+      "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
+      "/contents/" + path;
+    const body = {
+      message: message,
+      content: base64Encode(content),
+      branch: REPO_BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    return fetch(url, {
+      method: "PUT",
+      cache: "no-store",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  }
+
   function commitFile(path, content, message) {
     const token = getGithubToken();
     if (!token) {
       return Promise.reject(new Error("未配置 GitHub Token"));
     }
 
-    return getFileSha(path).then(function (sha) {
-      const url =
-        "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
-        "/contents/" + path;
-      const body = {
-        message: message,
-        content: base64Encode(content),
-        branch: REPO_BRANCH
-      };
-      if (sha) body.sha = sha;
-
-      return fetch(url, {
-        method: "PUT",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "Accept": "application/vnd.github+json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      }).then(function (response) {
-        if (!response.ok) {
+    function tryCommit(retry) {
+      return getFileSha(path).then(function (sha) {
+        return putFile(path, content, message, sha).then(function (response) {
+          if (response.ok) {
+            return response.json();
+          }
           return response.json().catch(function () { return {}; }).then(function (data) {
-            throw new Error(data.message || "GitHub API " + response.status);
+            const msg = data.message || "GitHub API " + response.status;
+            // sha 不匹配时，重新获取 sha 再试一次
+            if (retry && /does not match|sha/i.test(msg)) {
+              return tryCommit(false);
+            }
+            throw new Error(msg);
           });
-        }
-        return response.json();
+        });
       });
-    });
+    }
+
+    return tryCommit(true);
   }
 
   function commitPosts() {
     if (!hasGithubToken()) return Promise.resolve();
     const content = JSON.stringify(getPosts(), null, 2);
-    return commitFile(POSTS_PATH, content, "更新博文数据");
+    return commitLocked(function () {
+      return commitFile(POSTS_PATH, content, "更新博文数据");
+    });
   }
 
   function commitResources() {
     if (!hasGithubToken()) return Promise.resolve();
     const content = JSON.stringify(getResources(), null, 2);
-    return commitFile(RESOURCES_PATH, content, "更新资源数据");
+    return commitLocked(function () {
+      return commitFile(RESOURCES_PATH, content, "更新资源数据");
+    });
+  }
+
+  // 串行执行提交，避免并发导致 sha 冲突
+  function commitLocked(fn) {
+    const run = commitLock.then(fn, fn); // 即使上一次失败也继续
+    // 锁本身吞掉错误，保持链条可继续
+    commitLock = run.catch(function () {});
+    return run; // 调用方拿到的是可能 reject 的 promise
   }
 
   /* ---------- 密码哈希 ---------- */
