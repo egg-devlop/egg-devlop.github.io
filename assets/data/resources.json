@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "id": "file-mvm17wx7ylhwe",
+    "name": "ADB工具",
+    "category": "开发工具",
+    "desc": "有着ADB-Windows的全套工具，可以用于调试Android设备",
+    "fileName": "platform-tools-latest-windows.zip",
+    "fileSize": 8044989,
+    "fileType": "application/x-zip-compressed",
+    "type": "ZIP · 7.7 MB",
+    "icon": "code",
+    "author": "eggdevlop@163.com",
+    "authorName": "蛋站长",
+    "createdAt": 1792824167275,
+    "filePath": "assets/resources/file-mvm17wx7ylhwe-platform-tools-latest-windows.zip"
+  }
+]
