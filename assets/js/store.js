@@ -14,6 +14,7 @@
   const SESSION_KEY = "eggstation.session.v1";
   const PROFILE_KEY = "eggstation.profile.v1"; // 保存当前登录用户的个人信息
   const USERS_KEY = "eggstation.users.v1"; // 注册用户
+  const DELETIONS_KEY = "eggstation.deletions.v1"; // 站长删除记录
   const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
   const POST_STYLES = {
@@ -287,6 +288,14 @@
     return RESOURCE_ICONS[category] || "bolt";
   }
 
+  // 记录站长删除他人博文的缘由，便于向作者说明。
+  function logDeletion(record) {
+    const list = readArray(DELETIONS_KEY);
+    list.unshift(record);
+    // 最多保留 100 条删除记录
+    writeArray(DELETIONS_KEY, list.slice(0, 100));
+  }
+
   window.EggStore = {
     MAX_FILE_SIZE: MAX_FILE_SIZE,
     POST_STYLES: POST_STYLES,
@@ -306,6 +315,7 @@
     makeId: makeId,
     postStyle: postStyle,
     postArt: postArt,
-    resourceIcon: resourceIcon
+    resourceIcon: resourceIcon,
+    logDeletion: logDeletion
   };
 })();

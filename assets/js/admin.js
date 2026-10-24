@@ -162,7 +162,7 @@
   }
 
   /* ---------- 发布博文 ---------- */
-  function renderPosts(messageNode) {
+  function renderPosts(messageNode, session) {
     const list = $("[data-admin-posts]");
     if (!list) return;
 
@@ -176,15 +176,25 @@
       return;
     }
 
+    const isAdmin = session && session.role === "admin";
+    const currentUser = session ? session.username : "";
+
     list.innerHTML = posts
       .map(function (post, index) {
+        const isOwner = post.author === currentUser;
+        const canDelete = isOwner || isAdmin;
+        const authorLabel = post.authorName || (post.author || "佚名");
+
         return [
           '<div class="manage-item">',
           '<span class="manage-number">', pad(index + 1), "</span>",
           '<div class="manage-main"><strong>', escapeHTML(post.title), "</strong>",
-          "<span>", escapeHTML(post.category), " · ", escapeHTML(post.dateLabel), "</span></div>",
+          "<span>", escapeHTML(post.category), " · ", escapeHTML(post.dateLabel),
+          " · 作者：", escapeHTML(authorLabel), "</span></div>",
           '<a class="manage-open" href="blog.html#', escapeHTML(post.id), '">查看</a>',
-          '<button class="manage-delete" type="button" data-delete-post="', escapeHTML(post.id), '">删除</button>',
+          canDelete
+            ? '<button class="manage-delete" type="button" data-delete-post="' + escapeHTML(post.id) + '">删除</button>'
+            : "",
           "</div>"
         ].join("");
       })
@@ -197,24 +207,51 @@
         return item.id === button.dataset.deletePost;
       });
       if (!post) return;
-      if (!window.confirm("确定删除《" + post.title + "》吗？")) return;
+
+      const isOwner = post.author === currentUser;
+      const isOthersPost = !isOwner && isAdmin;
+
+      // 站长删除他人博文须说明缘由，否则不予删除
+      if (isOthersPost) {
+        const reason = window.prompt(
+          "删除他人博文《" + post.title + "》\n请填写删除缘由（将告知作者，留空则取消删除）："
+        );
+        if (reason === null || !reason.trim()) {
+          setMessage(messageNode, "未填写缘由，不予删除。", "error");
+          return;
+        }
+        STORE.logDeletion({
+          type: "post",
+          title: post.title,
+          author: post.author || "佚名",
+          reason: reason.trim(),
+          deletedBy: session.displayName || session.username,
+          deletedAt: Date.now()
+        });
+      } else {
+        if (!window.confirm("确定删除自己的博文《" + post.title + "》吗？")) return;
+      }
 
       const result = STORE.removePost(post.id);
       if (!result.ok) {
         setMessage(messageNode, result.message, "error");
         return;
       }
-      renderPosts(messageNode);
-      setMessage(messageNode, "博文已删除。", "success");
+      renderPosts(messageNode, session);
+      setMessage(
+        messageNode,
+        isOthersPost ? "博文已删除，缘由已记录。" : "博文已删除。",
+        "success"
+      );
     };
   }
 
-  function setupPostForm() {
+  function setupPostForm(session) {
     const form = $("[data-post-form]");
     if (!form) return;
 
     const message = $("[data-post-message]");
-    renderPosts(message);
+    renderPosts(message, session);
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -260,6 +297,8 @@
         excerpt: excerpt,
         quote: "",
         content: paragraphs,
+        author: session ? session.username : "",
+        authorName: session ? (session.displayName || session.username) : "匿名",
         createdAt: now.getTime()
       };
 
@@ -272,7 +311,7 @@
       form.reset();
       form.elements.category.value = category;
       setMessage(message, "博文《" + title + "》已发布，可在博客页查看。", "success");
-      renderPosts(message);
+      renderPosts(message, session);
       message.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
@@ -325,7 +364,7 @@
     };
   }
 
-  function setupResourceForm() {
+  function setupResourceForm(session) {
     const form = $("[data-resource-form]");
     if (!form) return;
 
@@ -458,8 +497,29 @@
       });
     });
 
-    setupPostForm();
-    setupResourceForm();
+    const isAdmin = session && session.role === "admin";
+
+    // 资源上传仅站长可用
+    const resourceForm = $("[data-resource-form]");
+    if (resourceForm) {
+      const card = resourceForm.closest(".dash-card");
+      if (card && !isAdmin) {
+        card.innerHTML = [
+          '<div class="dash-card-head">',
+          '<span class="dash-kicker">02 / NEW RESOURCE</span>',
+          "<h2>上传资源文件</h2>",
+          "<p>资源上传仅对站长开放。</p>",
+          "</div>",
+          '<div class="manage-empty" style="margin-top:8px">',
+          "<strong>仅站长可上传资源</strong>",
+          "<p>如需上传资源文件，请联系站长代为发布。</p>",
+          "</div>"
+        ].join("");
+      }
+    }
+
+    setupPostForm(session);
+    if (isAdmin) setupResourceForm(session);
   }
 
   setupAuthTabs();
