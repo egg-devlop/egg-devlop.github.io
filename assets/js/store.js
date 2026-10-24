@@ -189,7 +189,7 @@
     const fileName = safeFileName(file.name);
     const path = RESOURCES_DIR + "/" + resourceId + "-" + fileName;
     return fileToBase64(file).then(function (b64) {
-      return commitFile(path, "", "上传资源：" + file.name, b64, true).then(function () {
+      return commitFile(path, b64, "上传资源：" + file.name, true).then(function () {
         return path;
       });
     });
