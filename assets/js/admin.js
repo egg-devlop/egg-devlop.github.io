@@ -27,6 +27,7 @@
     node.textContent = message || "";
     node.classList.toggle("is-error", type === "error");
     node.classList.toggle("is-success", type === "success");
+    node.classList.toggle("is-warn", type === "warn");
   }
 
   function localDate(date) {
@@ -232,17 +233,19 @@
         if (!window.confirm("确定删除自己的博文《" + post.title + "》吗？")) return;
       }
 
-      const result = STORE.removePost(post.id);
-      if (!result.ok) {
-        setMessage(messageNode, result.message, "error");
-        return;
-      }
-      renderPosts(messageNode, session);
-      setMessage(
-        messageNode,
-        isOthersPost ? "博文已删除，缘由已记录。" : "博文已删除。",
-        "success"
-      );
+      STORE.removePost(post.id).then(function (result) {
+        if (!result.ok) {
+          setMessage(messageNode, result.message, "error");
+          return;
+        }
+        renderPosts(messageNode, session);
+        setMessage(
+          messageNode,
+          (isOthersPost ? "博文已删除，缘由已记录。" : "博文已删除。") +
+          (result.warning ? "（" + result.warning + "）" : ""),
+          result.warning ? "warn" : "success"
+        );
+      });
     };
   }
 
@@ -302,17 +305,19 @@
         createdAt: now.getTime()
       };
 
-      const result = STORE.addPost(post);
-      if (!result.ok) {
-        setMessage(message, result.message, "error");
-        return;
-      }
-
-      form.reset();
-      form.elements.category.value = category;
-      setMessage(message, "博文《" + title + "》已发布，可在博客页查看。", "success");
-      renderPosts(message, session);
-      message.scrollIntoView({ behavior: "smooth", block: "center" });
+      STORE.addPost(post).then(function (result) {
+        if (!result.ok) {
+          setMessage(message, result.message, "error");
+          return;
+        }
+        form.reset();
+        form.elements.category.value = category;
+        const text = "博文《" + title + "》已发布" +
+          (result.warning ? "（" + result.warning + "）" : "，可在博客页查看。");
+        setMessage(message, text, result.warning ? "warn" : "success");
+        renderPosts(message, session);
+        message.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
     });
   }
 
@@ -354,13 +359,18 @@
       if (!resource) return;
       if (!window.confirm("确定删除资源“" + resource.name + "”吗？")) return;
 
-      const result = STORE.removeResource(resource.id);
-      if (!result.ok) {
-        setMessage(messageNode, result.message, "error");
-        return;
-      }
-      renderResources(messageNode);
-      setMessage(messageNode, "资源已删除。", "success");
+      STORE.removeResource(resource.id).then(function (result) {
+        if (!result.ok) {
+          setMessage(messageNode, result.message, "error");
+          return;
+        }
+        renderResources(messageNode);
+        setMessage(
+          messageNode,
+          "资源已删除。" + (result.warning ? "（" + result.warning + "）" : ""),
+          result.warning ? "warn" : "success"
+        );
+      });
     };
   }
 
@@ -437,24 +447,27 @@
           createdAt: Date.now()
         };
 
-        const result = STORE.addResource(resource);
-        if (submit) {
-          submit.disabled = false;
-          submit.textContent = "上传资源";
-        }
+        STORE.addResource(resource).then(function (result) {
+          if (submit) {
+            submit.disabled = false;
+            submit.textContent = "上传资源";
+          }
 
-        if (!result.ok) {
-          setMessage(message, result.message, "error");
-          return;
-        }
+          if (!result.ok) {
+            setMessage(message, result.message, "error");
+            return;
+          }
 
-        form.reset();
-        if (fileInfo) {
-          fileInfo.textContent = "尚未选择文件";
-          fileInfo.classList.remove("is-error");
-        }
-        setMessage(message, "资源“" + name + "”已上传，可在资源页下载。", "success");
-        renderResources(message);
+          form.reset();
+          if (fileInfo) {
+            fileInfo.textContent = "尚未选择文件";
+            fileInfo.classList.remove("is-error");
+          }
+          const text = "资源“" + name + "”已上传" +
+            (result.warning ? "（" + result.warning + "）" : "，可在资源页下载。");
+          setMessage(message, text, result.warning ? "warn" : "success");
+          renderResources(message);
+        });
       };
 
       reader.onerror = function () {
@@ -470,6 +483,42 @@
   }
 
   /* ---------- 面板守卫与退出 ---------- */
+  /* ---------- GitHub Token 配置（仅站长） ---------- */
+  function setupToken() {
+    const form = $("[data-token-form]");
+    if (!form) return;
+
+    const message = $("[data-token-message]");
+    const input = form.elements.token;
+
+    // 显示当前是否已配置 Token
+    if (STORE.hasGithubToken()) {
+      setMessage(message, "已配置 GitHub Token，发布将自动同步到仓库。", "success");
+    } else {
+      setMessage(message, "尚未配置 Token，当前发布仅保存在本地。", "warn");
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const token = input.value.trim();
+      if (!token) {
+        setMessage(message, "请输入 GitHub Token。", "error");
+        return;
+      }
+      STORE.setGithubToken(token);
+      input.value = "";
+      setMessage(message, "Token 已保存，发布将同步到仓库。", "success");
+    });
+
+    const clearBtn = $("[data-token-clear]");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        STORE.setGithubToken("");
+        setMessage(message, "Token 已清除，发布将仅保存在本地。", "warn");
+      });
+    }
+  }
+
   function setupDashboard() {
     if (page !== "dashboard") return;
 
@@ -498,6 +547,13 @@
     });
 
     const isAdmin = session && session.role === "admin";
+
+    // Token 配置仅站长可见
+    const tokenCard = $("[data-token-card]");
+    if (tokenCard && isAdmin) {
+      tokenCard.hidden = false;
+      setupToken();
+    }
 
     // 资源上传仅站长可用
     const resourceForm = $("[data-resource-form]");

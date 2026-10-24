@@ -71,9 +71,29 @@
 
     <section class="container dash-section">
       <div class="dash-alert">
-        <strong>本地演示模式</strong>
-        <span>内容保存在当前浏览器的 localStorage 中，更换设备、清理缓存或使用无痕模式会看不到已发布的内容。</span>
+        <strong>数据共享说明</strong>
+        <span>博文与资源保存在仓库的 JSON 文件中，所有访客都能看到。站长需配置 GitHub Token，发布时会自动提交到仓库；未配置 Token 时仅保存到当前浏览器（他人看不到）。</span>
       </div>
+
+      <article class="dash-card" data-token-card hidden>
+        <div class="dash-card-head">
+          <span class="dash-kicker">GITHUB TOKEN · 仅站长</span>
+          <h2>同步发布到仓库</h2>
+          <p>配置一个有仓库读写权限的 Personal Access Token，发布博文/资源时会自动提交到 GitHub，所有访客立即可见。Token 仅保存在当前浏览器，不会上传到任何地方。</p>
+        </div>
+        <form class="dash-form" data-token-form>
+          <div class="field">
+            <label for="github-token">GitHub Personal Access Token</label>
+            <input id="github-token" name="token" type="password" autocomplete="off" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+            <span class="field-hint">需要 <code>repo</code> 或 <code>contents:write</code> 权限。创建地址：<a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a></span>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn--primary btn--small" type="submit">保存 Token</button>
+            <button class="btn btn--outline btn--small" type="button" data-token-clear>清除 Token</button>
+          </div>
+          <p class="form-message" data-token-message role="alert" aria-live="polite"></p>
+        </form>
+      </article>
 
       <div class="dash-grid">
         <article class="dash-card">

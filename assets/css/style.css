@@ -3172,6 +3172,25 @@ button {
   color: #3f8068;
 }
 
+.form-message.is-warn {
+  color: #a97600;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.field-hint code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  background: rgba(0,0,0,0.05);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .auth-hint {
   position: relative;
   margin-top: 22px;

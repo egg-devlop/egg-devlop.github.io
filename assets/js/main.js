@@ -5,8 +5,8 @@
   document.documentElement.classList.add("js");
 
   const STORE = window.EggStore;
-  const POSTS = STORE ? STORE.getPosts() : [];
-  const RESOURCES = STORE ? STORE.getResources() : [];
+  let POSTS = STORE ? STORE.getPosts() : [];
+  let RESOURCES = STORE ? STORE.getResources() : [];
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -663,11 +663,6 @@
 
   /* ---------- 启动 ---------- */
   initReveal();
-  paintStats();
-  renderHomePosts();
-  renderHomeResources();
-  setupBlog();
-  setupResources();
   setupDialog();
   setupHeroEgg();
   setupHeader();
@@ -676,6 +671,23 @@
 
   const year = $("[data-year]");
   if (year) year.textContent = String(new Date().getFullYear());
+
+  // 等仓库数据加载完成后再渲染博文/资源，确保所有访客看到同一份内容
+  function renderContent() {
+    POSTS = STORE ? STORE.getPosts() : [];
+    RESOURCES = STORE ? STORE.getResources() : [];
+    paintStats();
+    renderHomePosts();
+    renderHomeResources();
+    setupBlog();
+    setupResources();
+  }
+
+  if (STORE && typeof STORE.loadData === "function") {
+    STORE.loadData().then(renderContent).catch(renderContent);
+  } else {
+    renderContent();
+  }
 
   observeReveals();
 })();
