@@ -29,7 +29,7 @@
     {
       username: "eggdevlop@163.com",
       passwordHash: "b59a49d644208d7d6bb77eafd1ddaa23127a5c637f8f02b0ecdfe95beb6d97ec",
-      displayName: "鸡蛋站站长",
+      displayName: "蛋站长",
       role: "admin",
       bio: "负责写文章、整理资源，偶尔孵蛋。",
       createdAt: "2026-01-01"
