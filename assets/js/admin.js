@@ -577,6 +577,37 @@
         setMessage(message, "Token 已清除，发布将仅保存在本地。", "warn");
       });
     }
+
+    // 把本机注册的账号同步到仓库，其他设备即可登录
+    const syncBtn = $("[data-users-sync]");
+    if (syncBtn) {
+      syncBtn.addEventListener("click", function () {
+        if (!STORE.hasGithubToken()) {
+          setMessage(message, "请先保存 GitHub Token，再同步账号。", "error");
+          return;
+        }
+        syncBtn.disabled = true;
+        syncBtn.textContent = "同步中…";
+        STORE.loadData().then(function () {
+          const pending = STORE.getUnsyncedUsers();
+          return STORE.commitUsers().then(function () {
+            syncBtn.disabled = false;
+            syncBtn.textContent = "同步账号到仓库";
+            setMessage(
+              message,
+              pending.length
+                ? "已把 " + pending.length + " 个账号同步到仓库，其他设备现在可以登录了。"
+                : "账号已与仓库保持一致，无需同步。",
+              "success"
+            );
+          });
+        }).catch(function (error) {
+          syncBtn.disabled = false;
+          syncBtn.textContent = "同步账号到仓库";
+          setMessage(message, "同步失败：" + (error && error.message ? error.message : "未知错误"), "error");
+        });
+      });
+    }
   }
 
   function setupDashboard() {

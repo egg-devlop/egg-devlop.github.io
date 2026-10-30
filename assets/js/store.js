@@ -27,6 +27,7 @@
   const REPO_BRANCH = "main";
   const POSTS_PATH = "assets/data/posts.json";
   const RESOURCES_PATH = "assets/data/resources.json";
+  const USERS_PATH = "assets/data/users.json";
   const RESOURCES_DIR = "assets/resources";
   const POST_IMAGES_DIR = "assets/uploads/posts";
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 单张配图上限 10MB
@@ -50,6 +51,7 @@
   /* ---------- 内存缓存（从仓库 JSON 加载） ---------- */
   let postsCache = null;
   let resourcesCache = null;
+  let usersCache = null; // 仓库中的注册用户
   let dataReady = null; // Promise，数据加载完成后 resolve
 
   // 提交锁：避免并发提交导致 sha 冲突
@@ -100,12 +102,14 @@
     if (dataReady) return dataReady;
     dataReady = Promise.all([
       fetchJSON(POSTS_PATH),
-      fetchJSON(RESOURCES_PATH)
+      fetchJSON(RESOURCES_PATH),
+      fetchJSON(USERS_PATH)
     ]).then(function (results) {
       // 合并本地尚未同步到仓库的内容，避免刷新后被仓库数据覆盖
       postsCache = mergeLocal(results[0], readArray(POSTS_KEY));
       resourcesCache = mergeLocal(results[1], readArray(RESOURCES_KEY));
-      return { posts: postsCache, resources: resourcesCache };
+      usersCache = results[2];
+      return { posts: postsCache, resources: resourcesCache, users: usersCache };
     });
     return dataReady;
   }
@@ -556,8 +560,61 @@
     return readArray(USERS_KEY);
   }
 
+  // 仓库 users.json 中的注册用户（所有设备共享）
+  function getRepoUsers() {
+    return usersCache !== null ? usersCache : [];
+  }
+
   function getAllUsers() {
-    return getBuiltInUsers().concat(getRegisteredUsers());
+    const seen = {};
+    const out = [];
+    getBuiltInUsers()
+      .concat(getRepoUsers())
+      .concat(getRegisteredUsers())
+      .forEach(function (user) {
+        if (!user || !user.username || seen[user.username]) return;
+        seen[user.username] = true;
+        out.push(user);
+      });
+    return out;
+  }
+
+  // 需要写入仓库的注册用户 = 仓库已有 + 本地新增（不含内置账号）
+  function getSyncableUsers() {
+    const builtinNames = {};
+    getBuiltInUsers().forEach(function (user) { builtinNames[user.username] = true; });
+    const seen = {};
+    const out = [];
+    getRegisteredUsers()
+      .concat(getRepoUsers())
+      .forEach(function (user) {
+        if (!user || !user.username || builtinNames[user.username] || seen[user.username]) return;
+        seen[user.username] = true;
+        out.push(user);
+      });
+    return out;
+  }
+
+  // 本地已注册但还没同步到仓库的账号
+  function getUnsyncedUsers() {
+    const repoNames = {};
+    getRepoUsers().forEach(function (user) { repoNames[user.username] = true; });
+    return getSyncableUsers().filter(function (user) {
+      return !repoNames[user.username];
+    });
+  }
+
+  function commitUsers() {
+    if (!hasGithubToken()) {
+      return Promise.reject(new Error("未配置 GitHub Token"));
+    }
+    const content = JSON.stringify(getSyncableUsers(), null, 2);
+    return commitLocked(function () {
+      return commitFile(USERS_PATH, content, "更新用户数据");
+    }).then(function (result) {
+      usersCache = getSyncableUsers();
+      return result;
+    });
   }
 
   function findUser(identifier) {
@@ -571,88 +628,108 @@
   }
 
   function register(identifier, password, displayName) {
-    const username = String(identifier || "").trim();
-    const name = displayName ? String(displayName).trim() : username;
+    return loadData().catch(function () { return null; }).then(function () {
+      const username = String(identifier || "").trim();
+      const name = displayName ? String(displayName).trim() : username;
 
-    if (username.length < 2) {
-      return Promise.resolve({ ok: false, message: "账号至少需要 2 个字符。" });
-    }
-    if (!password || password.length < 6) {
-      return Promise.resolve({ ok: false, message: "密码至少需要 6 位。" });
-    }
-    if (findUser(username)) {
-      return Promise.resolve({ ok: false, message: "该账号已存在，请直接登录或换一个。" });
-    }
-
-    const salt = window.EGG_USER_SALT || "";
-    return sha256Hex(salt + String(password)).then(function (hash) {
-      const user = {
-        username: username,
-        passwordHash: hash,
-        displayName: name,
-        role: "member",
-        bio: "",
-        createdAt: new Date().toISOString().slice(0, 10),
-        registered: true
-      };
-
-      const result = writeArray(USERS_KEY, getRegisteredUsers().concat(user));
-      if (!result.ok) {
-        return { ok: false, message: result.message || "注册失败，请稍后再试。" };
+      if (username.length < 2) {
+        return { ok: false, message: "账号至少需要 2 个字符。" };
+      }
+      if (!password || password.length < 6) {
+        return { ok: false, message: "密码至少需要 6 位。" };
+      }
+      if (findUser(username)) {
+        return { ok: false, message: "该账号已存在，请直接登录或换一个。" };
       }
 
-      const profile = {
-        username: user.username,
-        displayName: user.displayName,
-        role: user.role,
-        bio: user.bio,
-        createdAt: user.createdAt,
-        loginAt: Date.now()
-      };
+      const salt = window.EGG_USER_SALT || "";
+      return sha256Hex(salt + String(password)).then(function (hash) {
+        const user = {
+          username: username,
+          passwordHash: hash,
+          displayName: name,
+          role: "member",
+          bio: "",
+          createdAt: new Date().toISOString().slice(0, 10),
+          registered: true
+        };
 
-      try {
-        window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-        window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-      } catch (error) {
-        return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
-      }
+        const result = writeArray(USERS_KEY, getRegisteredUsers().concat(user));
+        if (!result.ok) {
+          return { ok: false, message: result.message || "注册失败，请稍后再试。" };
+        }
 
-      return { ok: true, profile: profile };
+        const profile = {
+          username: user.username,
+          displayName: user.displayName,
+          role: user.role,
+          bio: user.bio,
+          createdAt: user.createdAt,
+          loginAt: Date.now()
+        };
+
+        try {
+          window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+          window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+        } catch (error) {
+          return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
+        }
+
+        // 有 Token 时把账号同步到仓库，其他设备也能登录
+        if (!hasGithubToken()) {
+          return {
+            ok: true,
+            profile: profile,
+            warning: "账号已创建并登录，但目前只保存在本机。站长在发布面板同步账号后，其他设备才能登录。"
+          };
+        }
+        return commitUsers().then(function () {
+          return { ok: true, profile: profile };
+        }).catch(function (error) {
+          return {
+            ok: true,
+            profile: profile,
+            warning: "账号已创建并登录，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
+          };
+        });
+      });
     });
   }
 
   function login(identifier, password) {
-    const user = findUser(identifier);
-    if (!user) {
-      return Promise.resolve({ ok: false, message: "该账号不存在，可以先注册一个。" });
-    }
-    if (!user.passwordHash) {
-      return Promise.resolve({ ok: false, message: "该账号未设置密码，请联系站点管理员。" });
-    }
-
-    const salt = window.EGG_USER_SALT || "";
-    return sha256Hex(salt + String(password || "")).then(function (hash) {
-      if (hash !== user.passwordHash) {
-        return { ok: false, message: "密码不正确，请重新输入。" };
+    return loadData().catch(function () { return null; }).then(function () {
+      const user = findUser(identifier);
+      if (!user) {
+        return { ok: false, message: "该账号不存在，可以先注册一个。" };
+      }
+      if (!user.passwordHash) {
+        return { ok: false, message: "该账号未设置密码，请联系站点管理员。" };
       }
 
-      const profile = {
-        username: user.username,
-        displayName: user.displayName || user.username,
-        role: user.role || "member",
-        bio: user.bio || "",
-        createdAt: user.createdAt || "",
-        loginAt: Date.now()
-      };
+      const salt = window.EGG_USER_SALT || "";
+      return sha256Hex(salt + String(password || "")).then(function (hash) {
+        if (hash !== user.passwordHash) {
+          return { ok: false, message: "密码不正确，请重新输入。" };
+        }
 
-      try {
-        window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-        window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-      } catch (error) {
-        return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
-      }
+        const profile = {
+          username: user.username,
+          displayName: user.displayName || user.username,
+          role: user.role || "member",
+          bio: user.bio || "",
+          createdAt: user.createdAt || "",
+          loginAt: Date.now()
+        };
 
-      return { ok: true, profile: profile };
+        try {
+          window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+          window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+        } catch (error) {
+          return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
+        }
+
+        return { ok: true, profile: profile };
+      });
     });
   }
 
@@ -729,6 +806,8 @@
     removeResource: removeResource,
     login: login,
     register: register,
+    commitUsers: commitUsers,
+    getUnsyncedUsers: getUnsyncedUsers,
     logout: logout,
     getSession: getSession,
     getSavedProfile: getSavedProfile,
