@@ -102,11 +102,22 @@
       fetchJSON(POSTS_PATH),
       fetchJSON(RESOURCES_PATH)
     ]).then(function (results) {
-      postsCache = results[0];
-      resourcesCache = results[1];
+      // 合并本地尚未同步到仓库的内容，避免刷新后被仓库数据覆盖
+      postsCache = mergeLocal(results[0], readArray(POSTS_KEY));
+      resourcesCache = mergeLocal(results[1], readArray(RESOURCES_KEY));
       return { posts: postsCache, resources: resourcesCache };
     });
     return dataReady;
+  }
+
+  // 把只存在于本地的条目（按 id 去重）并到仓库数据前面
+  function mergeLocal(remote, local) {
+    const remoteIds = {};
+    remote.forEach(function (item) { remoteIds[item.id] = true; });
+    const localOnly = local.filter(function (item) {
+      return item && item.id && !remoteIds[item.id];
+    });
+    return localOnly.concat(remote);
   }
 
   /* ---------- 博文 ---------- */
@@ -124,6 +135,13 @@
     postsCache = posts;
     const local = writeArray(POSTS_KEY, posts);
     if (!local.ok) return Promise.resolve(local);
+
+    if (!hasGithubToken()) {
+      return Promise.resolve({
+        ok: true,
+        warning: "未配置 GitHub Token，仅保存在当前浏览器，其他访客看不到。请在发布面板配置 Token 后重新发布。"
+      });
+    }
 
     // 尝试提交到 GitHub（如果配置了 Token）
     return commitPosts().then(function () {
