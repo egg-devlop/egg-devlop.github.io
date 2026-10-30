@@ -132,13 +132,29 @@
     return name ? '<span class="post-author">· ' + escapeHTML(name) + "</span>" : "";
   }
 
+  function postImage(post) {
+    // 优先使用封面图；没有则返回空字符串
+    const cover = post.cover || (Array.isArray(post.images) && post.images[0]) || "";
+    return typeof cover === "string" ? cover : "";
+  }
+
+  function coverHTML(post, className) {
+    const src = postImage(post);
+    if (!src) return "";
+    return (
+      '<img class="' + className + '" src="' + escapeHTML(src) +
+      '" alt="' + escapeHTML(post.title) + '" loading="lazy">'
+    );
+  }
+
   function postCard(post, index, delay) {
+    const cover = coverHTML(post, "post-art-img");
     return [
       '<article class="post-card reveal" style="--soft:', escapeHTML(post.soft), ";--accent:", escapeHTML(post.accent), ";--delay:", delay, 'ms">',
       '<a href="blog.html#', escapeHTML(post.id), '" data-post-link="', escapeHTML(post.id), '">',
-      '<span class="post-art post-art--', escapeHTML(post.art), '">',
-      '<span class="post-art-index" aria-hidden="true">', pad(index + 1), "</span>",
-      '<span class="post-art-egg" aria-hidden="true"></span>',
+      '<span class="post-art post-art--', escapeHTML(post.art), cover ||cover ? " has-image" : "", '">',
+       '<span class="post-art-index" aria-hidden="true">' + pad(index + 1) + "</span>" +
+        '<span class="post-art-egg" aria-hidden="true"></span>',
       "</span>",
       '<div class="post-card-body">',
       '<div class="post-meta"><span class="tag">', escapeHTML(post.category), "</span>",
@@ -195,10 +211,10 @@
 
       featuredWrap.innerHTML = [
         '<article class="featured-post reveal" style="--soft:', escapeHTML(post.soft), ";--accent:", escapeHTML(post.accent), '">',
-        '<a class="featured-art post-art--', escapeHTML(post.art), '" href="blog.html#', escapeHTML(post.id), '" data-post-link="', escapeHTML(post.id), '" aria-label="阅读文章：', escapeHTML(post.title), '">',
+        '<a class="featured-art post-art--', escapeHTML(post.art), coverHTML(post, "featured-art-img") ? " has-image" : "", '" href="blog.html#', escapeHTML(post.id), '" data-post-link="', escapeHTML(post.id), '" aria-label="阅读文章：', escapeHTML(post.title), '">',
         '<span class="featured-word">EDITOR\'S PICK · 01</span>',
-        '<span class="post-art-index" aria-hidden="true">01</span>',
-        '<span class="post-art-egg" aria-hidden="true"></span>',
+        coverHTML(post, "featured-art-img") ||
+          '<span class="post-art-index" aria-hidden="true">01</span><span class="post-art-egg" aria-hidden="true"></span>',
         "</a>",
         '<div class="featured-copy">',
         '<div class="post-meta"><span class="tag">', escapeHTML(post.category), "</span>",
@@ -469,7 +485,15 @@
       title.textContent = post.title;
     }
     if (content) {
-      content.innerHTML = post.content
+      const gallery = (Array.isArray(post.images) ? post.images : [])
+        .filter(function (src) { return typeof src === "string" && src; })
+        .map(function (src) {
+          return '<figure class="article-figure"><img src="' + escapeHTML(src) +
+            '" alt="' + escapeHTML(post.title) + '" loading="lazy"></figure>';
+        })
+        .join("");
+
+      content.innerHTML = gallery + post.content
         .map(function (paragraph, paragraphIndex) {
           const quote =
             paragraphIndex === 1 && post.quote

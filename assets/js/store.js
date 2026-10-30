@@ -28,6 +28,8 @@
   const POSTS_PATH = "assets/data/posts.json";
   const RESOURCES_PATH = "assets/data/resources.json";
   const RESOURCES_DIR = "assets/resources";
+  const POST_IMAGES_DIR = "assets/uploads/posts";
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 单张配图上限 10MB
 
   const POST_STYLES = {
     前端开发: { accent: "#5a8fa9", soft: "#e5eff3" },
@@ -135,6 +137,7 @@
   }
 
   function removePost(id) {
+    const target = getPosts().find(function (post) { return post.id === id; });
     const posts = getPosts().filter(function (post) {
       return post.id !== id;
     });
@@ -142,13 +145,25 @@
     const local = writeArray(POSTS_KEY, posts);
     if (!local.ok) return Promise.resolve(local);
 
-    return commitPosts().then(function () {
-      return { ok: true };
-    }).catch(function (error) {
-      return {
-        ok: true,
-        warning: "已从本地删除，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
-      };
+    // 先清理仓库中的配图（Data URL 是本地图片，跳过）
+    const images = target && Array.isArray(target.images) ? target.images : [];
+    const deleteImages = Promise.all(
+      images
+        .filter(function (src) {
+          return typeof src === "string" && src.indexOf("data:") !== 0;
+        })
+        .map(deleteResourceFile)
+    ).catch(function () { return null; });
+
+    return deleteImages.then(function () {
+      return commitPosts().then(function () {
+        return { ok: true };
+      }).catch(function (error) {
+        return {
+          ok: true,
+          warning: "已从本地删除，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
+        };
+      });
     });
   }
 
@@ -192,6 +207,52 @@
       return commitFile(path, b64, "上传资源：" + file.name, true).then(function () {
         return path;
       });
+    });
+  }
+
+  // 上传博文配图到仓库的 assets/uploads/posts/ 目录，返回图片路径
+  function uploadPostImage(file, postId, index) {
+    const fileName = safeFileName(file.name);
+    const path =
+      POST_IMAGES_DIR + "/" + postId + "-" + (index + 1) + "-" + fileName;
+    return fileToBase64(file).then(function (b64) {
+      return commitFile(path, b64, "上传博文配图：" + file.name, true).then(function () {
+        return path;
+      });
+    });
+  }
+
+  // 上传多张配图；无 Token 时降级为 Data URL（只存在本地）
+  function uploadPostImages(postId, files) {
+    const list = Array.prototype.slice.call(files || []);
+    if (!list.length) return Promise.resolve({ ok: true, images: [] });
+
+    if (!hasGithubToken()) {
+      return Promise.all(list.map(function (file) {
+        return fileToDataURL(file);
+      })).then(function (urls) {
+        return { ok: true, images: urls, local: true };
+      });
+    }
+
+    return Promise.all(list.map(function (file, index) {
+      return uploadPostImage(file, postId, index);
+    })).then(function (paths) {
+      return { ok: true, images: paths };
+    });
+  }
+
+  // 把 File 转为完整 Data URL（仅用于无 Token 的本地降级）
+  function fileToDataURL(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result || ""));
+      };
+      reader.onerror = function () {
+        reject(new Error("读取图片失败"));
+      };
+      reader.readAsDataURL(file);
     });
   }
 
@@ -638,11 +699,13 @@
 
   window.EggStore = {
     MAX_FILE_SIZE: MAX_FILE_SIZE,
+    MAX_IMAGE_SIZE: MAX_IMAGE_SIZE,
     POST_STYLES: POST_STYLES,
     loadData: loadData,
     getPosts: getPosts,
     addPost: addPost,
     removePost: removePost,
+    uploadPostImages: uploadPostImages,
     getResources: getResources,
     addResource: addResource,
     removeResource: removeResource,

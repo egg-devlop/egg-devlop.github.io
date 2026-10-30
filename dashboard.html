@@ -7,7 +7,7 @@
   <meta name="description" content="鸡蛋站发布面板：发布新博文、上传资源文件。">
   <meta name="theme-color" content="#fff8ea">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/css/style.css?v=2">
+  <link rel="stylesheet" href="assets/css/style.css?v=3">
 </head>
 <body data-page="dashboard">
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -72,12 +72,12 @@
     <section class="container dash-section">
       <div class="dash-alert">
         <strong>数据共享说明</strong>
-        <span>博文与资源保存在仓库的 JSON 文件中，所有访客都能看到。站长需配置 GitHub Token，发布时会自动提交到仓库；未配置 Token 时仅保存到当前浏览器（他人看不到）。</span>
+        <span>博文与资源保存在仓库的 JSON 文件中，所有访客都能看到。已登录用户配置 GitHub Token 后，发布时会自动提交到仓库；未配置 Token 时仅保存到当前浏览器（他人看不到）。</span>
       </div>
 
       <article class="dash-card" data-token-card hidden>
         <div class="dash-card-head">
-          <span class="dash-kicker">GITHUB TOKEN · 仅站长</span>
+          <span class="dash-kicker">GITHUB TOKEN · 服务器同步</span>
           <h2>同步发布到仓库</h2>
           <p>配置一个有仓库读写权限的 Personal Access Token，发布博文/资源时会自动提交到 GitHub，所有访客立即可见。Token 仅保存在当前浏览器，不会上传到任何地方。</p>
         </div>
@@ -125,7 +125,12 @@
               <label for="post-content">正文</label>
               <textarea id="post-content" name="content" rows="10" placeholder="开始写作吧。每行会成为一个段落。" required></textarea>
             </div>
-            <button class="btn btn--primary" type="submit">发布这篇博文</button>
+            <div class="field">
+              <label for="post-images">配图 <span class="field-optional">选填，可多选，每张不超过 10MB</span></label>
+              <input class="file-input" id="post-images" name="images" type="file" accept="image/*" multiple>
+              <span class="field-hint" data-post-images-info>尚未选择图片</span>
+            </div>
+            <button class="btn btn--primary" type="submit" data-post-submit>发布这篇博文</button>
             <p class="form-message" data-post-message role="alert" aria-live="polite"></p>
           </form>
         </article>
@@ -203,9 +208,9 @@
     </div>
   </footer>
 
-  <script src="assets/js/users.js?v=2" defer></script>
-  <script src="assets/js/store.js?v=2" defer></script>
-  <script src="assets/js/main.js?v=2" defer></script>
-  <script src="assets/js/admin.js?v=2" defer></script>
+  <script src="assets/js/users.js?v=3" defer></script>
+  <script src="assets/js/store.js?v=3" defer></script>
+  <script src="assets/js/main.js?v=3" defer></script>
+  <script src="assets/js/admin.js?v=3" defer></script>
 </body>
 </html>

@@ -2130,6 +2130,41 @@ button {
   color: #4b443a;
 }
 
+/* 博文配图 */
+.post-art-img,
+.featured-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.post-art.has-image::before,
+.featured-art.has-image::before {
+  display: none;
+}
+
+.post-art.has-image .post-art-index,
+.post-art.has-image .post-art-egg,
+.featured-art.has-image .post-art-index,
+.featured-art.has-image .post-art-egg {
+  display: none;
+}
+
+.dialog-content .article-figure {
+  margin: 4px 0 24px;
+}
+
+.dialog-content .article-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+}
+
 .dialog-content blockquote {
   margin: 28px 0;
   padding: 22px 26px;

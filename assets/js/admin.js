@@ -256,7 +256,29 @@
     if (!form) return;
 
     const message = $("[data-post-message]");
+    const imageInput = form.elements.images;
+    const imageInfo = $("[data-post-images-info]");
+    const submit = $("[data-post-submit]");
     renderPosts(message, session);
+
+    if (imageInput && imageInfo) {
+      imageInput.addEventListener("change", function () {
+        const files = Array.prototype.slice.call(imageInput.files || []);
+        if (!files.length) {
+          imageInfo.textContent = "尚未选择图片";
+          imageInfo.classList.remove("is-error");
+          return;
+        }
+        const total = files.reduce(function (sum, file) { return sum + file.size; }, 0);
+        const tooBig = files.filter(function (file) {
+          return file.size > STORE.MAX_IMAGE_SIZE;
+        });
+        imageInfo.textContent = "已选择 " + files.length + " 张图片，共 " +
+          STORE.formatBytes(total) +
+          (tooBig.length ? "（有 " + tooBig.length + " 张超过 10MB）" : "");
+        imageInfo.classList.toggle("is-error", tooBig.length > 0);
+      });
+    }
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -277,6 +299,15 @@
       if (!paragraphs.length) {
         setMessage(message, "正文不能为空，写一句也可以。", "error");
         form.elements.content.focus();
+        return;
+      }
+
+      const files = Array.prototype.slice.call((imageInput && imageInput.files) || []);
+      const tooBig = files.filter(function (file) {
+        return file.size > STORE.MAX_IMAGE_SIZE;
+      });
+      if (tooBig.length) {
+        setMessage(message, "有 " + tooBig.length + " 张图片超过 10MB，请压缩后再发布。", "error");
         return;
       }
 
@@ -302,23 +333,53 @@
         excerpt: excerpt,
         quote: "",
         content: paragraphs,
+        images: [],
+        cover: "",
         author: session ? session.username : "",
         authorName: session ? (session.displayName || session.username) : "匿名",
         createdAt: now.getTime()
       };
 
-      STORE.addPost(post).then(function (result) {
-        if (!result.ok) {
-          setMessage(message, result.message, "error");
-          return;
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = files.length ? "正在上传配图…" : "正在发布…";
+      }
+      if (files.length) {
+        setMessage(message, "正在上传 " + files.length + " 张配图到仓库，请稍候…", "success");
+      }
+
+      STORE.uploadPostImages(post.id, files).then(function (uploaded) {
+        post.images = uploaded.images || [];
+        post.cover = post.images.length ? post.images[0] : "";
+
+        return STORE.addPost(post).then(function (result) {
+          if (submit) {
+            submit.disabled = false;
+            submit.textContent = "发布这篇博文";
+          }
+          if (!result.ok) {
+            setMessage(message, result.message, "error");
+            return;
+          }
+          form.reset();
+          form.elements.category.value = category;
+          if (imageInfo) {
+            imageInfo.textContent = "尚未选择图片";
+            imageInfo.classList.remove("is-error");
+          }
+          const text = "博文《" + title + "》已发布" +
+            (result.warning ? "（" + result.warning + "）" : "，可在博客页查看。") +
+            (uploaded.local ? "（未配置 Token，配图仅自己可见）" : "");
+          setMessage(message, text, result.warning || uploaded.local ? "warn" : "success");
+          renderPosts(message, session);
+          message.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }).catch(function (error) {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = "发布这篇博文";
         }
-        form.reset();
-        form.elements.category.value = category;
-        const text = "博文《" + title + "》已发布" +
-          (result.warning ? "（" + result.warning + "）" : "，可在博客页查看。");
-        setMessage(message, text, result.warning ? "warn" : "success");
-        renderPosts(message, session);
-        message.scrollIntoView({ behavior: "smooth", block: "center" });
+        setMessage(message, "配图上传失败：" + (error && error.message ? error.message : "未知错误"), "error");
       });
     });
   }
@@ -547,9 +608,9 @@
 
     const isAdmin = session && session.role === "admin";
 
-    // Token 配置仅站长可见
+    // Token 配置对所有已登录用户可见：只有配置后内容才会保存到服务器（GitHub 仓库）
     const tokenCard = $("[data-token-card]");
-    if (tokenCard && isAdmin) {
+    if (tokenCard) {
       tokenCard.hidden = false;
       setupToken();
     }
@@ -575,6 +636,14 @@
 
     setupPostForm(session);
     if (isAdmin) setupResourceForm(session);
+
+    // 仓库数据加载完成后再刷新列表，避免只显示本地缓存
+    if (STORE && typeof STORE.loadData === "function") {
+      STORE.loadData().then(function () {
+        renderPosts($("[data-post-message]"), STORE.getSession());
+        if (isAdmin) renderResources($("[data-resource-message]"));
+      });
+    }
   }
 
   setupAuthTabs();
