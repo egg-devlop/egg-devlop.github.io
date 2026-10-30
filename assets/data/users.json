@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "username": "eggmama@mama.com",
+    "passwordHash": "d8127b48c1c84b0304dc13dc12cb5085c734211396928064c5e40a9347a04344",
+    "displayName": "mama",
+    "role": "member",
+    "bio": "",
+    "createdAt": "2026-10-30",
+    "registered": true
+  }
+]
