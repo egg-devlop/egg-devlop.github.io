@@ -7,5 +7,14 @@
     "bio": "",
     "createdAt": "2026-10-30",
     "registered": true
+  },
+  {
+    "username": "eggmama@mama.co",
+    "passwordHash": "d22bc81177510f7e770e360d3a8c2597951014ac567e24e573a3bf902c088359",
+    "displayName": "mam",
+    "role": "member",
+    "bio": "",
+    "createdAt": "2026-10-30",
+    "registered": true
   }
 ]
