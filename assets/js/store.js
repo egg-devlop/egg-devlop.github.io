@@ -18,6 +18,7 @@
   const USERS_KEY = "eggstation.users.v1";
   const DELETIONS_KEY = "eggstation.deletions.v1";
   const TOKEN_KEY = "eggstation.github_token.v1";
+  const KEY_SESSION_KEY = "eggstation.key.v1"; // 登录后派生的 AES 密钥（仅本次会话）
 
   const MAX_FILE_SIZE = 100 * 1024 * 1024; // GitHub Contents API 单文件上限 100MB
 
@@ -414,10 +415,37 @@
       } else {
         window.localStorage.removeItem(TOKEN_KEY);
       }
-      return true;
     } catch (error) {
-      return false;
+      return Promise.resolve(false);
     }
+
+    // 站长保存 Token 时：用登录密码加密后写入仓库用户记录，换设备登录即可自动恢复
+    const session = getSession();
+    if (!token || !session || session.role !== "admin") {
+      return Promise.resolve(true);
+    }
+    return encryptToken(token).then(function (cipher) {
+      if (!cipher) return true; // 无密钥（如登录过久）时只存本地
+      // 给当前账号写一条覆盖记录（含密码哈希，保证仓库记录可独立用于登录）
+      const current = findUser(session.username) || {};
+      const record = Object.assign({}, current, {
+        username: session.username,
+        displayName: session.displayName || session.username,
+        role: "admin",
+        tokenCipher: cipher
+      });
+      const locals = getRegisteredUsers().filter(function (u) {
+        return u.username !== session.username;
+      });
+      locals.push(record);
+      writeArray(USERS_KEY, locals);
+      if (usersCache) {
+        usersCache = usersCache.filter(function (u) { return u.username !== session.username; });
+        usersCache.push(record);
+      }
+      // 静默同步；失败不影响本地使用
+      return commitUsers().catch(function () {}).then(function () { return true; });
+    });
   }
 
   function hasGithubToken() {
@@ -550,6 +578,89 @@
     return Promise.resolve("__unsupported__");
   }
 
+  /* ---------- Token 加密：用登录密码派生 AES 密钥，密文才可入仓库 ---------- */
+  function bytesToB64(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    return window.btoa(binary);
+  }
+
+  function b64ToBytes(b64) {
+    const binary = window.atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  // 登录成功后：用 密码+盐 派生 AES-GCM 密钥，只存在 sessionStorage
+  function deriveSessionKey(username, password) {
+    if (!window.crypto || !crypto.subtle) return Promise.resolve();
+    const salt = new TextEncoder().encode((window.EGG_USER_SALT || "") + "|token-key|" + username);
+    return crypto.subtle
+      .importKey("raw", new TextEncoder().encode(String(password)), "PBKDF2", false, ["deriveKey"])
+      .then(function (base) {
+        return crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt: salt, iterations: 50000, hash: "SHA-256" },
+          base,
+          { name: "AES-GCM", length: 256 },
+          true,
+          ["encrypt", "decrypt"]
+        );
+      })
+      .then(function (key) {
+        return crypto.subtle.exportKey("raw", key).then(function (raw) {
+          try {
+            window.sessionStorage.setItem(KEY_SESSION_KEY, bytesToB64(new Uint8Array(raw)));
+          } catch (error) { /* 忽略 */ }
+        });
+      })
+      .catch(function () { /* 不支持时静默降级 */ });
+  }
+
+  function getSessionKey() {
+    if (!window.crypto || !crypto.subtle) return Promise.resolve(null);
+    let b64 = "";
+    try {
+      b64 = window.sessionStorage.getItem(KEY_SESSION_KEY) || "";
+    } catch (error) {
+      return Promise.resolve(null);
+    }
+    if (!b64) return Promise.resolve(null);
+    return crypto.subtle
+      .importKey("raw", b64ToBytes(b64), { name: "AES-GCM" }, false, ["encrypt", "decrypt"])
+      .catch(function () { return null; });
+  }
+
+  function encryptToken(token) {
+    return getSessionKey().then(function (key) {
+      if (!key) return null;
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      return crypto.subtle
+        .encrypt({ name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(String(token)))
+        .then(function (buf) {
+          return { iv: bytesToB64(iv), data: bytesToB64(new Uint8Array(buf)) };
+        })
+        .catch(function () { return null; });
+    });
+  }
+
+  function decryptToken(record) {
+    if (!record || !record.tokenCipher) return Promise.resolve("");
+    return getSessionKey().then(function (key) {
+      if (!key) return "";
+      return crypto.subtle
+        .decrypt(
+          { name: "AES-GCM", iv: b64ToBytes(record.tokenCipher.iv) },
+          key,
+          b64ToBytes(record.tokenCipher.data)
+        )
+        .then(function (buf) {
+          return new TextDecoder().decode(buf);
+        })
+        .catch(function () { return ""; });
+    });
+  }
+
   /* ---------- 登录 / 会话 ---------- */
   function getBuiltInUsers() {
     const list = window.EGG_USERS;
@@ -566,29 +677,31 @@
   }
 
   function getAllUsers() {
-    const seen = {};
-    const out = [];
+    const byName = {};
+    const order = [];
+    // 后出现的记录覆盖同名字段（仓库/本地记录可给内置账号补充 tokenCipher 等）
     getBuiltInUsers()
       .concat(getRepoUsers())
       .concat(getRegisteredUsers())
       .forEach(function (user) {
-        if (!user || !user.username || seen[user.username]) return;
-        seen[user.username] = true;
-        out.push(user);
+        if (!user || !user.username) return;
+        if (!byName[user.username]) {
+          byName[user.username] = {};
+          order.push(user.username);
+        }
+        byName[user.username] = Object.assign(byName[user.username], user);
       });
-    return out;
+    return order.map(function (name) { return byName[name]; });
   }
 
-  // 需要写入仓库的注册用户 = 仓库已有 + 本地新增（不含内置账号）
+  // 需要写入仓库的用户记录 = 本地注册 + 仓库已有 + 带 tokenCipher 的内置账号
   function getSyncableUsers() {
-    const builtinNames = {};
-    getBuiltInUsers().forEach(function (user) { builtinNames[user.username] = true; });
     const seen = {};
     const out = [];
     getRegisteredUsers()
       .concat(getRepoUsers())
       .forEach(function (user) {
-        if (!user || !user.username || builtinNames[user.username] || seen[user.username]) return;
+        if (!user || !user.username || seen[user.username]) return;
         seen[user.username] = true;
         out.push(user);
       });
@@ -728,7 +841,13 @@
           return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
         }
 
-        return { ok: true, profile: profile };
+        // 派生会话密钥，并尝试解密仓库中保存的 Token（换设备也能直接发布）
+        return deriveSessionKey(user.username, password).then(function () {
+          return decryptToken(user);
+        }).then(function (token) {
+          if (token) setGithubToken(token);
+          return { ok: true, profile: profile };
+        });
       });
     });
   }
@@ -757,6 +876,8 @@
   function logout() {
     try {
       window.sessionStorage.removeItem(SESSION_KEY);
+      window.sessionStorage.removeItem(KEY_SESSION_KEY);
+      window.localStorage.removeItem(TOKEN_KEY);
     } catch (error) {
       /* 忽略 */
     }

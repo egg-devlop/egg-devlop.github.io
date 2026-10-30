@@ -565,9 +565,10 @@
         setMessage(message, "请输入 GitHub Token。", "error");
         return;
       }
-      STORE.setGithubToken(token);
-      input.value = "";
-      setMessage(message, "Token 已保存，发布将同步到仓库。", "success");
+      Promise.resolve(STORE.setGithubToken(token)).then(function () {
+        input.value = "";
+        setMessage(message, "Token 已保存：本机可用，并已用登录密码加密同步到仓库，其他设备登录站长账号后自动恢复。", "success");
+      });
     });
 
     const clearBtn = $("[data-token-clear]");
@@ -639,9 +640,9 @@
 
     const isAdmin = session && session.role === "admin";
 
-    // Token 配置对所有已登录用户可见：只有配置后内容才会保存到服务器（GitHub 仓库）
+    // Token 配置仅站长可见：Token 会用站长密码加密后存入仓库，换设备登录自动恢复
     const tokenCard = $("[data-token-card]");
-    if (tokenCard) {
+    if (tokenCard && isAdmin) {
       tokenCard.hidden = false;
       setupToken();
     }
