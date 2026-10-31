@@ -607,6 +607,22 @@
       });
     }
 
+    // 站长设置同步口令
+    const passBtn = $("[data-pass-save]");
+    if (passBtn) {
+      passBtn.addEventListener("click", function () {
+        const pass = form.elements.passphrase.value.trim();
+        passBtn.disabled = true;
+        passBtn.textContent = "保存中…";
+        STORE.setSyncPassphrase(pass).then(function (result) {
+          passBtn.disabled = false;
+          passBtn.textContent = "保存同步口令";
+          setMessage(message, result.message, result.ok ? "success" : "error");
+          if (result.ok) form.elements.passphrase.value = "";
+        });
+      });
+    }
+
     // 把本机注册的账号同步到仓库，其他设备即可登录
     const syncBtn = $("[data-users-sync]");
     if (syncBtn) {
@@ -675,7 +691,7 @@
       setupToken();
     }
 
-    // 未同步到仓库的成员：显示同步码，让其发给站长导入
+    // 未同步到仓库的成员：一个按钮，输入口令自行同步
     const memberSync = $("[data-member-sync]");
     if (memberSync && session && !isAdmin) {
       STORE.loadData().then(function () {
@@ -683,29 +699,29 @@
         const needSync = STORE.getUnsyncedUsers().some(function (u) {
           return u.username === session.username;
         });
-        if (needSync) {
-          memberSync.hidden = false;
-          const codeArea = $("[data-sync-code]", memberSync);
-          const syncMessage = $("[data-sync-message]", memberSync);
-          if (codeArea) codeArea.value = STORE.makeAccountCode(session.username);
-          const copyBtn = $("[data-copy-code]", memberSync);
-          if (copyBtn && codeArea) {
-            copyBtn.addEventListener("click", function () {
-              codeArea.select();
-              const done = function () {
-                setMessage(syncMessage, "同步码已复制，发给站长即可。", "success");
-              };
-              if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(codeArea.value).then(done, function () {
-                  document.execCommand("copy");
-                  done();
-                });
-              } else {
-                document.execCommand("copy");
-                done();
+        if (!needSync) return;
+
+        memberSync.hidden = false;
+        const syncMessage = $("[data-sync-message]", memberSync);
+        const selfBtn = $("[data-self-sync]", memberSync);
+        if (selfBtn) {
+          selfBtn.addEventListener("click", function () {
+            const pass = window.prompt("请输入站长告诉你的同步口令：");
+            if (pass === null) return;
+            selfBtn.disabled = true;
+            selfBtn.textContent = "同步中…";
+            STORE.selfSyncAccount(pass.trim()).then(function (result) {
+              selfBtn.disabled = false;
+              selfBtn.textContent = "同步我的账号";
+              setMessage(syncMessage, result.message, result.ok ? "success" : "error");
+              if (result.ok) {
+                // 同步成功后隐藏卡片
+                window.setTimeout(function () {
+                  memberSync.hidden = true;
+                }, 2000);
               }
             });
-          }
+          });
         }
       });
     }

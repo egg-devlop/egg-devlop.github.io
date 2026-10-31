@@ -7,7 +7,7 @@
   <meta name="description" content="鸡蛋站发布面板：发布新博文、上传资源文件。">
   <meta name="theme-color" content="#fff8ea">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/css/style.css?v=7">
+  <link rel="stylesheet" href="assets/css/style.css?v=8">
 </head>
 <body data-page="dashboard">
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -100,6 +100,14 @@
           <div class="form-actions">
             <button class="btn btn--primary btn--small" type="button" data-import-account>导入并同步</button>
           </div>
+          <div class="field" style="margin-top:18px">
+            <label for="sync-pass">同步口令</label>
+            <input id="sync-pass" name="passphrase" type="text" autocomplete="off" placeholder="设一个口令，当面告诉信任的同学">
+            <span class="field-hint">设置后，访客在发布面板输入口令即可自行把账号同步进仓库，无需等你操作。口令至少 4 位。</span>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn--primary btn--small" type="button" data-pass-save>保存同步口令</button>
+          </div>
           <p class="form-message" data-token-message role="alert" aria-live="polite"></p>
         </form>
       </article>
@@ -108,15 +116,11 @@
         <div class="dash-card-head">
           <span class="dash-kicker">ACCOUNT SYNC · 账号同步</span>
           <h2>让你的账号全设备可用</h2>
-          <p>你的账号目前只保存在这台设备的浏览器里。复制下面的同步码发给站长，站长导入后，你在任何设备都能登录。</p>
+          <p>你的账号目前只保存在这台设备的浏览器里。点击下面的按钮，输入站长告诉你的同步口令，即可把账号同步进仓库，之后任何设备都能登录。</p>
         </div>
         <div class="dash-form">
-          <div class="field">
-            <label for="sync-code">我的同步码</label>
-            <textarea id="sync-code" rows="3" readonly data-sync-code></textarea>
-          </div>
           <div class="form-actions">
-            <button class="btn btn--primary btn--small" type="button" data-copy-code>复制同步码</button>
+            <button class="btn btn--primary btn--small" type="button" data-self-sync>同步我的账号</button>
           </div>
           <p class="form-message" data-sync-message role="alert" aria-live="polite"></p>
         </div>
@@ -235,9 +239,9 @@
     </div>
   </footer>
 
-  <script src="assets/js/users.js?v=7" defer></script>
-  <script src="assets/js/store.js?v=7" defer></script>
-  <script src="assets/js/main.js?v=7" defer></script>
-  <script src="assets/js/admin.js?v=7" defer></script>
+  <script src="assets/js/users.js?v=8" defer></script>
+  <script src="assets/js/store.js?v=8" defer></script>
+  <script src="assets/js/main.js?v=8" defer></script>
+  <script src="assets/js/admin.js?v=8" defer></script>
 </body>
 </html>

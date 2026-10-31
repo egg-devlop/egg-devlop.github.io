@@ -29,6 +29,7 @@
   const POSTS_PATH = "assets/data/posts.json";
   const RESOURCES_PATH = "assets/data/resources.json";
   const USERS_PATH = "assets/data/users.json";
+  const SYNC_PATH = "assets/data/sync.json"; // 同步口令加密后的 Token
   const RESOURCES_DIR = "assets/resources";
   const POST_IMAGES_DIR = "assets/uploads/posts";
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 单张配图上限 10MB
@@ -400,7 +401,11 @@
   }
 
   /* ---------- GitHub API：提交数据到仓库 ---------- */
+  // 一次性 Token（自行同步时使用，不落盘）
+  let tempToken = "";
+
   function getGithubToken() {
+    if (tempToken) return tempToken;
     try {
       return window.localStorage.getItem(TOKEN_KEY) || "";
     } catch (error) {
@@ -661,6 +666,107 @@
     });
   }
 
+  /* ---------- 同步口令：站长设置，访客凭口令自行把账号提交进仓库 ---------- */
+  function derivePassKey(passphrase) {
+    if (!window.crypto || !crypto.subtle) return Promise.resolve(null);
+    const salt = new TextEncoder().encode((window.EGG_USER_SALT || "") + "|sync-pass|");
+    return crypto.subtle
+      .importKey("raw", new TextEncoder().encode(String(passphrase)), "PBKDF2", false, ["deriveKey"])
+      .then(function (base) {
+        return crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt: salt, iterations: 50000, hash: "SHA-256" },
+          base,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"]
+        );
+      })
+      .catch(function () { return null; });
+  }
+
+  function encryptWithPass(token, passphrase) {
+    return derivePassKey(passphrase).then(function (key) {
+      if (!key) return null;
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      return crypto.subtle
+        .encrypt({ name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(String(token)))
+        .then(function (buf) {
+          return { iv: bytesToB64(iv), data: bytesToB64(new Uint8Array(buf)) };
+        })
+        .catch(function () { return null; });
+    });
+  }
+
+  function decryptWithPass(record, passphrase) {
+    return derivePassKey(passphrase).then(function (key) {
+      if (!key || !record || !record.iv) return "";
+      return crypto.subtle
+        .decrypt({ name: "AES-GCM", iv: b64ToBytes(record.iv) }, key, b64ToBytes(record.data))
+        .then(function (buf) {
+          return new TextDecoder().decode(buf);
+        })
+        .catch(function () { return ""; });
+    });
+  }
+
+  // 站长：设置/更新同步口令（用口令加密当前 Token 后存入仓库）
+  function setSyncPassphrase(passphrase) {
+    const token = getGithubToken();
+    if (!token) {
+      return Promise.resolve({ ok: false, message: "请先保存 GitHub Token，再设置同步口令。" });
+    }
+    if (!passphrase || String(passphrase).length < 4) {
+      return Promise.resolve({ ok: false, message: "同步口令至少 4 位。" });
+    }
+    return encryptWithPass(token, passphrase).then(function (cipher) {
+      if (!cipher) {
+        return { ok: false, message: "当前浏览器不支持加密，请换现代浏览器。" };
+      }
+      return commitLocked(function () {
+        return commitFile(SYNC_PATH, JSON.stringify({ v: 1, iv: cipher.iv, data: cipher.data }, null, 2), "更新同步口令");
+      }).then(function () {
+        return { ok: true, message: "同步口令已设置，访客凭口令即可自行同步账号。" };
+      }).catch(function (error) {
+        return { ok: false, message: "口令保存失败：" + (error && error.message ? error.message : "未知错误") };
+      });
+    });
+  }
+
+  // 访客：输入同步口令，把本机账号提交进仓库（Token 只在内存里用一次）
+  function selfSyncAccount(passphrase) {
+    if (!passphrase) {
+      return Promise.resolve({ ok: false, message: "请输入同步口令。" });
+    }
+    return fetch(SYNC_PATH + "?t=" + Date.now(), { cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .catch(function () { return null; })
+      .then(function (record) {
+        if (!record || !record.iv) {
+          return { ok: false, message: "站长还没有设置同步口令，请联系站长。" };
+        }
+        return decryptWithPass(record, passphrase).then(function (token) {
+          if (!token) {
+            return { ok: false, message: "口令不正确，请找站长确认后再试。" };
+          }
+          tempToken = token;
+          return commitUsers()
+            .then(function () {
+              return { ok: true, message: "同步成功！你的账号已存入仓库，任何设备都能登录了。" };
+            })
+            .catch(function (error) {
+              return { ok: false, message: "同步失败：" + (error && error.message ? error.message : "未知错误") };
+            })
+            .then(function (result) {
+              tempToken = "";
+              return result;
+            });
+        });
+      });
+  }
+
   /* ---------- 登录 / 会话 ---------- */
   function getBuiltInUsers() {
     const list = window.EGG_USERS;
@@ -861,7 +967,7 @@
           return {
             ok: true,
             profile: profile,
-            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板复制你的「同步码」发给站长，站长导入后即可全设备登录。"
+            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板点「同步我的账号」，输入站长给的同步口令，即可全设备登录。"
           };
         }
         return commitUsers().then(function () {
@@ -999,6 +1105,8 @@
     getUnsyncedUsers: getUnsyncedUsers,
     makeAccountCode: makeAccountCode,
     importAccount: importAccount,
+    setSyncPassphrase: setSyncPassphrase,
+    selfSyncAccount: selfSyncAccount,
     logout: logout,
     getSession: getSession,
     getSavedProfile: getSavedProfile,
