@@ -808,6 +808,73 @@
       });
   }
 
+  // 注销当前账号：删除本机记录 + 仓库中的账号记录与待审批申请，然后退出登录
+  function deleteAccount() {
+    const session = getSession();
+    if (!session) {
+      return Promise.resolve({ ok: false, message: "请先登录。" });
+    }
+    if (session.role === "admin") {
+      return Promise.resolve({ ok: false, message: "站长账号不可注销。" });
+    }
+    const username = session.username;
+
+    // 本机记录先删
+    writeArray(USERS_KEY, getRegisteredUsers().filter(function (u) {
+      return u.username !== username;
+    }));
+
+    // 尝试用自助同步 Token 清理仓库记录
+    return fetch(SYNC_PATH + "?t=" + Date.now(), { cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .catch(function () { return null; })
+      .then(function (record) {
+        const token = record && record.data ? decodeSyncToken(record) : "";
+        if (!token) {
+          return { ok: true, message: "账号已在本机注销。" };
+        }
+        tempToken = token;
+        return readRepoJSON(USERS_PATH).then(function (users) {
+          const rest = users.filter(function (u) { return u.username !== username; });
+          const chain = rest.length === users.length
+            ? Promise.resolve()
+            : commitLocked(function () {
+                usersCache = rest;
+                return commitFile(USERS_PATH, JSON.stringify(rest, null, 2), "注销账号：" + username);
+              });
+          return chain.then(function () {
+            return readRepoJSON(PENDING_PATH);
+          }).then(function (pending) {
+            const restPending = pending.filter(function (p) { return p.username !== username; });
+            if (restPending.length === pending.length) return null;
+            return commitLocked(function () {
+              return commitFile(PENDING_PATH, JSON.stringify(restPending, null, 2), "撤销申请：" + username);
+            });
+          }).then(function () {
+            return { ok: true, message: "账号已注销，仓库记录已删除。" };
+          });
+        }).catch(function () {
+          return { ok: true, message: "账号已在本机注销，但仓库记录清理失败，可联系站长手动删除。" };
+        }).then(function (result) {
+          tempToken = "";
+          return result;
+        });
+      })
+      .then(function (result) {
+        // 清理登录状态与个人信息
+        try {
+          window.sessionStorage.removeItem(SESSION_KEY);
+          window.sessionStorage.removeItem(KEY_SESSION_KEY);
+          window.localStorage.removeItem(PROFILE_KEY);
+          window.localStorage.removeItem(TOKEN_KEY);
+        } catch (error) { /* 忽略 */ }
+        return result;
+      });
+  }
+
   /* ---------- 站长审批（需要本机已保存站长 Token） ---------- */
   // 审批区入口密钥：存哈希不存明文，校验时用 SALT + 输入 算 SHA-256 比对
   const ADMIN_KEY_HASH = "b59a49d644208d7d6bb77eafd1ddaa23127a5c637f8f02b0ecdfe95beb6d97ec";
@@ -1217,6 +1284,7 @@
     getPendingRequests: getPendingRequests,
     approveRequest: approveRequest,
     rejectRequest: rejectRequest,
+    deleteAccount: deleteAccount,
     logout: logout,
     getSession: getSession,
     getSavedProfile: getSavedProfile,

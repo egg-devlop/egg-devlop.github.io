@@ -2130,6 +2130,14 @@ button {
   color: #4b443a;
 }
 
+.text-button--danger {
+  color: #c0392b;
+}
+
+.text-button--danger:hover {
+  color: #96281b;
+}
+
 /* 博文配图 */
 .post-art-img,
 .featured-art-img {

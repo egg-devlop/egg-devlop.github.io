@@ -694,6 +694,21 @@
 
     const isAdmin = session && session.role === "admin";
 
+    // 注销账号：仅成员可见，站长不可注销
+    const deleteBtn = $("[data-delete-account]");
+    if (deleteBtn && !isAdmin) {
+      deleteBtn.hidden = false;
+      deleteBtn.addEventListener("click", function () {
+        if (!window.confirm("注销后账号将从本机和仓库中删除，且无法恢复。确定注销吗？")) return;
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = "注销中…";
+        STORE.deleteAccount().then(function (result) {
+          window.alert(result.message);
+          window.location.href = "admin.html";
+        });
+      });
+    }
+
     // Token 配置仅站长可见：Token 会用站长密码加密后存入仓库，换设备登录自动恢复
     const tokenCard = $("[data-token-card]");
     if (tokenCard && isAdmin) {
