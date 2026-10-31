@@ -708,6 +708,74 @@
     return out;
   }
 
+  /* ---------- 账号同步码：访客导出给站长，站长导入后统一同步 ---------- */
+  function makeAccountCode(username) {
+    const user = findUser(username);
+    if (!user || !user.passwordHash) return "";
+    const payload = {
+      username: user.username,
+      passwordHash: user.passwordHash,
+      displayName: user.displayName || user.username,
+      role: user.role === "admin" ? "admin" : "member",
+      bio: user.bio || "",
+      createdAt: user.createdAt || ""
+    };
+    try {
+      return "EGGUSER." + base64Encode(JSON.stringify(payload));
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function parseAccountCode(code) {
+    const text = String(code || "").trim();
+    if (text.indexOf("EGGUSER.") !== 0) return null;
+    try {
+      const binary = window.atob(text.slice(8));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      if (!payload || !payload.username || !payload.passwordHash) return null;
+      return {
+        username: String(payload.username),
+        passwordHash: String(payload.passwordHash),
+        displayName: String(payload.displayName || payload.username),
+        role: payload.role === "admin" ? "admin" : "member",
+        bio: String(payload.bio || ""),
+        createdAt: String(payload.createdAt || ""),
+        registered: true
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // 站长导入访客同步码：写入本地记录并提交到仓库
+  function importAccount(code) {
+    const record = parseAccountCode(code);
+    if (!record) {
+      return Promise.resolve({ ok: false, message: "同步码无法识别，请确认完整复制后再试。" });
+    }
+    const existing = findUser(record.username);
+    if (existing && existing.passwordHash) {
+      // 已存在：更新密码哈希以外的资料也无妨，直接视为已同步
+      return Promise.resolve({ ok: true, message: "账号“" + record.username + "”已存在，无需导入。" });
+    }
+    const locals = getRegisteredUsers().filter(function (u) {
+      return u.username !== record.username;
+    });
+    locals.push(record);
+    writeArray(USERS_KEY, locals);
+    if (usersCache) {
+      usersCache = usersCache.filter(function (u) { return u.username !== record.username; });
+    }
+    return commitUsers().then(function () {
+      return { ok: true, message: "账号“" + (record.displayName || record.username) + "”已导入并同步到仓库，对方现在可以登录了。" };
+    }).catch(function (error) {
+      return { ok: false, message: "已导入本机，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误") };
+    });
+  }
+
   // 本地已注册但还没同步到仓库的账号
   function getUnsyncedUsers() {
     const repoNames = {};
@@ -793,7 +861,7 @@
           return {
             ok: true,
             profile: profile,
-            warning: "账号已创建并登录，但目前只保存在本机。站长在发布面板同步账号后，其他设备才能登录。"
+            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板复制你的「同步码」发给站长，站长导入后即可全设备登录。"
           };
         }
         return commitUsers().then(function () {
@@ -929,6 +997,8 @@
     register: register,
     commitUsers: commitUsers,
     getUnsyncedUsers: getUnsyncedUsers,
+    makeAccountCode: makeAccountCode,
+    importAccount: importAccount,
     logout: logout,
     getSession: getSession,
     getSavedProfile: getSavedProfile,

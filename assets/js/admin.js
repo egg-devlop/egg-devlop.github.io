@@ -579,6 +579,34 @@
       });
     }
 
+    // 站长导入访客同步码
+    const importBtn = $("[data-import-account]");
+    const importInput = form.elements.code;
+    if (importBtn && importInput) {
+      importBtn.addEventListener("click", function () {
+        const code = importInput.value.trim();
+        if (!code) {
+          setMessage(message, "请先粘贴访客发来的同步码。", "error");
+          importInput.focus();
+          return;
+        }
+        importBtn.disabled = true;
+        importBtn.textContent = "导入中…";
+        STORE.loadData().then(function () {
+          return STORE.importAccount(code);
+        }).then(function (result) {
+          importBtn.disabled = false;
+          importBtn.textContent = "导入并同步";
+          setMessage(message, result.message, result.ok ? "success" : "error");
+          if (result.ok) importInput.value = "";
+        }).catch(function (error) {
+          importBtn.disabled = false;
+          importBtn.textContent = "导入并同步";
+          setMessage(message, "导入失败：" + (error && error.message ? error.message : "未知错误"), "error");
+        });
+      });
+    }
+
     // 把本机注册的账号同步到仓库，其他设备即可登录
     const syncBtn = $("[data-users-sync]");
     if (syncBtn) {
@@ -645,6 +673,41 @@
     if (tokenCard && isAdmin) {
       tokenCard.hidden = false;
       setupToken();
+    }
+
+    // 未同步到仓库的成员：显示同步码，让其发给站长导入
+    const memberSync = $("[data-member-sync]");
+    if (memberSync && session && !isAdmin) {
+      STORE.loadData().then(function () {
+        // 仓库用户列表里没有该账号，才需要同步
+        const needSync = STORE.getUnsyncedUsers().some(function (u) {
+          return u.username === session.username;
+        });
+        if (needSync) {
+          memberSync.hidden = false;
+          const codeArea = $("[data-sync-code]", memberSync);
+          const syncMessage = $("[data-sync-message]", memberSync);
+          if (codeArea) codeArea.value = STORE.makeAccountCode(session.username);
+          const copyBtn = $("[data-copy-code]", memberSync);
+          if (copyBtn && codeArea) {
+            copyBtn.addEventListener("click", function () {
+              codeArea.select();
+              const done = function () {
+                setMessage(syncMessage, "同步码已复制，发给站长即可。", "success");
+              };
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(codeArea.value).then(done, function () {
+                  document.execCommand("copy");
+                  done();
+                });
+              } else {
+                document.execCommand("copy");
+                done();
+              }
+            });
+          }
+        }
+      });
     }
 
     // 资源上传仅站长可用
