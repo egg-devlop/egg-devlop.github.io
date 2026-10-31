@@ -578,35 +578,7 @@
       });
     }
 
-    // 站长导入访客同步码
-    const importBtn = $("[data-import-account]");
-    const importInput = form.elements.code;
-    if (importBtn && importInput) {
-      importBtn.addEventListener("click", function () {
-        const code = importInput.value.trim();
-        if (!code) {
-          setMessage(message, "请先粘贴访客发来的同步码。", "error");
-          importInput.focus();
-          return;
-        }
-        importBtn.disabled = true;
-        importBtn.textContent = "导入中…";
-        STORE.loadData().then(function () {
-          return STORE.importAccount(code);
-        }).then(function (result) {
-          importBtn.disabled = false;
-          importBtn.textContent = "导入并同步";
-          setMessage(message, result.message, result.ok ? "success" : "error");
-          if (result.ok) importInput.value = "";
-        }).catch(function (error) {
-          importBtn.disabled = false;
-          importBtn.textContent = "导入并同步";
-          setMessage(message, "导入失败：" + (error && error.message ? error.message : "未知错误"), "error");
-        });
-      });
-    }
-
-    // 站长开启/关闭访客自助同步
+    // 站长开启/关闭注册申请通道
     const passBtn = $("[data-pass-save]");
     if (passBtn) {
       passBtn.addEventListener("click", function () {
@@ -614,7 +586,7 @@
         passBtn.textContent = "开启中…";
         STORE.publishSyncToken().then(function (result) {
           passBtn.disabled = false;
-          passBtn.textContent = "开启自助同步";
+          passBtn.textContent = "开启注册申请";
           setMessage(message, result.message, result.ok ? "success" : "error");
         });
       });
@@ -626,7 +598,7 @@
         revokeBtn.textContent = "关闭中…";
         STORE.revokeSyncToken().then(function (result) {
           revokeBtn.disabled = false;
-          revokeBtn.textContent = "关闭自助同步";
+          revokeBtn.textContent = "关闭注册申请";
           setMessage(message, result.message, result.ok ? "success" : "error");
         });
       });
@@ -713,39 +685,6 @@
     if (tokenCard && isAdmin) {
       tokenCard.hidden = false;
       setupToken();
-    }
-
-    // 未同步到仓库的成员：一个按钮，输入口令自行同步
-    const memberSync = $("[data-member-sync]");
-    if (memberSync && session && !isAdmin) {
-      STORE.loadData().then(function () {
-        // 仓库用户列表里没有该账号，才需要同步
-        const needSync = STORE.getUnsyncedUsers().some(function (u) {
-          return u.username === session.username;
-        });
-        if (!needSync) return;
-
-        memberSync.hidden = false;
-        const syncMessage = $("[data-sync-message]", memberSync);
-        const selfBtn = $("[data-self-sync]", memberSync);
-        if (selfBtn) {
-          selfBtn.addEventListener("click", function () {
-            selfBtn.disabled = true;
-            selfBtn.textContent = "同步中…";
-            STORE.selfSyncAccount().then(function (result) {
-              selfBtn.disabled = false;
-              selfBtn.textContent = "同步我的账号";
-              setMessage(syncMessage, result.message, result.ok ? "success" : "error");
-              if (result.ok) {
-                // 同步成功后隐藏卡片
-                window.setTimeout(function () {
-                  memberSync.hidden = true;
-                }, 2000);
-              }
-            });
-          });
-        }
-      });
     }
 
     // 资源上传仅站长可用

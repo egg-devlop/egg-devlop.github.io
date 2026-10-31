@@ -746,68 +746,6 @@
     }
   }
 
-  // 访客：把账号提交到待审批队列（不是直接进 users.json，站长批准后生效）
-  function selfSyncAccount() {
-    const session = getSession();
-    if (!session) {
-      return Promise.resolve({ ok: false, message: "请先登录。" });
-    }
-    const user = findUser(session.username);
-    if (!user || !user.passwordHash) {
-      return Promise.resolve({ ok: false, message: "找不到账号信息，请重新注册。" });
-    }
-    return fetch(SYNC_PATH + "?t=" + Date.now(), { cache: "no-store" })
-      .then(function (response) {
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        return response.json();
-      })
-      .catch(function () { return null; })
-      .then(function (record) {
-        if (!record || !record.data) {
-          return { ok: false, message: "站长还没有开启同步申请，请联系站长。" };
-        }
-        const token = decodeSyncToken(record);
-        if (!token) {
-          return { ok: false, message: "同步配置损坏，请联系站长重新开启。" };
-        }
-        tempToken = token;
-        return readRepoJSON(USERS_PATH).then(function (repoUsers) {
-          if (repoUsers.some(function (u) { return u.username === user.username; })) {
-            return { ok: true, message: "你的账号已在仓库中，任何设备都能登录，无需申请。" };
-          }
-          return readRepoJSON(PENDING_PATH).then(function (pending) {
-            const exists = pending.some(function (p) { return p.username === user.username; });
-            if (!exists) {
-              pending.push({
-                username: user.username,
-                passwordHash: user.passwordHash,
-                displayName: user.displayName || user.username,
-                role: "member",
-                bio: user.bio || "",
-                createdAt: user.createdAt || "",
-                requestedAt: Date.now()
-              });
-            }
-            return commitLocked(function () {
-              return commitFile(PENDING_PATH, JSON.stringify(pending, null, 2), "账号同步申请：" + user.username);
-            }).then(function () {
-              return {
-                ok: true,
-                message: exists
-                  ? "你的申请已在队列中，等站长批准即可。"
-                  : "申请已提交，站长批准后就能全设备登录。"
-              };
-            });
-          });
-        }).catch(function (error) {
-          return { ok: false, message: "提交失败：" + (error && error.message ? error.message : "未知错误") };
-        }).then(function (result) {
-          tempToken = "";
-          return result;
-        });
-      });
-  }
-
   // 注销当前账号：删除本机记录 + 仓库中的账号记录与待审批申请，然后退出登录
   function deleteAccount() {
     const session = getSession();
@@ -983,74 +921,6 @@
         out.push(user);
       });
     return out;
-  }
-
-  /* ---------- 账号同步码：访客导出给站长，站长导入后统一同步 ---------- */
-  function makeAccountCode(username) {
-    const user = findUser(username);
-    if (!user || !user.passwordHash) return "";
-    const payload = {
-      username: user.username,
-      passwordHash: user.passwordHash,
-      displayName: user.displayName || user.username,
-      role: user.role === "admin" ? "admin" : "member",
-      bio: user.bio || "",
-      createdAt: user.createdAt || ""
-    };
-    try {
-      return "EGGUSER." + base64Encode(JSON.stringify(payload));
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function parseAccountCode(code) {
-    const text = String(code || "").trim();
-    if (text.indexOf("EGGUSER.") !== 0) return null;
-    try {
-      const binary = window.atob(text.slice(8));
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const payload = JSON.parse(new TextDecoder().decode(bytes));
-      if (!payload || !payload.username || !payload.passwordHash) return null;
-      return {
-        username: String(payload.username),
-        passwordHash: String(payload.passwordHash),
-        displayName: String(payload.displayName || payload.username),
-        role: payload.role === "admin" ? "admin" : "member",
-        bio: String(payload.bio || ""),
-        createdAt: String(payload.createdAt || ""),
-        registered: true
-      };
-    } catch (error) {
-      return null;
-    }
-  }
-
-  // 站长导入访客同步码：写入本地记录并提交到仓库
-  function importAccount(code) {
-    const record = parseAccountCode(code);
-    if (!record) {
-      return Promise.resolve({ ok: false, message: "同步码无法识别，请确认完整复制后再试。" });
-    }
-    const existing = findUser(record.username);
-    if (existing && existing.passwordHash) {
-      // 已存在：更新密码哈希以外的资料也无妨，直接视为已同步
-      return Promise.resolve({ ok: true, message: "账号“" + record.username + "”已存在，无需导入。" });
-    }
-    const locals = getRegisteredUsers().filter(function (u) {
-      return u.username !== record.username;
-    });
-    locals.push(record);
-    writeArray(USERS_KEY, locals);
-    if (usersCache) {
-      usersCache = usersCache.filter(function (u) { return u.username !== record.username; });
-    }
-    return commitUsers().then(function () {
-      return { ok: true, message: "账号“" + (record.displayName || record.username) + "”已导入并同步到仓库，对方现在可以登录了。" };
-    }).catch(function (error) {
-      return { ok: false, message: "已导入本机，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误") };
-    });
   }
 
   // 本地已注册但还没同步到仓库的账号
@@ -1268,12 +1138,8 @@
     register: register,
     commitUsers: commitUsers,
     getUnsyncedUsers: getUnsyncedUsers,
-    makeAccountCode: makeAccountCode,
-    importAccount: importAccount,
-    setSyncPassphrase: publishSyncToken,
     publishSyncToken: publishSyncToken,
     revokeSyncToken: revokeSyncToken,
-    selfSyncAccount: selfSyncAccount,
     checkAdminKey: checkAdminKey,
     getPendingRequests: getPendingRequests,
     approveRequest: approveRequest,
