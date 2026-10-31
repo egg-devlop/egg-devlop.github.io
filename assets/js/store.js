@@ -29,7 +29,8 @@
   const POSTS_PATH = "assets/data/posts.json";
   const RESOURCES_PATH = "assets/data/resources.json";
   const USERS_PATH = "assets/data/users.json";
-  const SYNC_PATH = "assets/data/sync.json"; // 同步口令加密后的 Token
+  const SYNC_PATH = "assets/data/sync.json"; // 自助同步用的 Token（base64）
+  const PENDING_PATH = "assets/data/pending-users.json"; // 待审批的账号申请
   const RESOURCES_DIR = "assets/resources";
   const POST_IMAGES_DIR = "assets/uploads/posts";
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 单张配图上限 10MB
@@ -713,8 +714,48 @@
     });
   }
 
-  // 访客：一键把本机账号同步进仓库（Token 只在内存里用一次，不落盘）
+  // 通过 GitHub API 直接读仓库 JSON（比 Pages CDN 新鲜，可拿到数组）
+  function readRepoJSON(path) {
+    const token = getGithubToken();
+    const url =
+      "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
+      "/contents/" + path + "?ref=" + REPO_BRANCH + "&t=" + Date.now();
+    const headers = { "Accept": "application/vnd.github+json", "If-None-Match": "" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(url, { cache: "no-store", headers: headers }).then(function (response) {
+      if (response.status === 404) return [];
+      if (!response.ok) throw new Error("GitHub API " + response.status);
+      return response.json().then(function (data) {
+        const binary = window.atob(String(data.content || "").replace(/\n/g, ""));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        const parsed = JSON.parse(new TextDecoder().decode(bytes));
+        return Array.isArray(parsed) ? parsed : [];
+      });
+    });
+  }
+
+  function decodeSyncToken(record) {
+    try {
+      const binary = window.atob(record.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    } catch (error) {
+      return "";
+    }
+  }
+
+  // 访客：把账号提交到待审批队列（不是直接进 users.json，站长批准后生效）
   function selfSyncAccount() {
+    const session = getSession();
+    if (!session) {
+      return Promise.resolve({ ok: false, message: "请先登录。" });
+    }
+    const user = findUser(session.username);
+    if (!user || !user.passwordHash) {
+      return Promise.resolve({ ok: false, message: "找不到账号信息，请重新注册。" });
+    }
     return fetch(SYNC_PATH + "?t=" + Date.now(), { cache: "no-store" })
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
@@ -723,30 +764,111 @@
       .catch(function () { return null; })
       .then(function (record) {
         if (!record || !record.data) {
-          return { ok: false, message: "站长还没有开启自助同步，请联系站长。" };
+          return { ok: false, message: "站长还没有开启同步申请，请联系站长。" };
         }
-        let token = "";
-        try {
-          const binary = window.atob(record.data);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-          token = new TextDecoder().decode(bytes);
-        } catch (error) {
+        const token = decodeSyncToken(record);
+        if (!token) {
           return { ok: false, message: "同步配置损坏，请联系站长重新开启。" };
         }
         tempToken = token;
-        return commitUsers()
-          .then(function () {
-            return { ok: true, message: "同步成功！你的账号已存入仓库，任何设备都能登录了。" };
-          })
-          .catch(function (error) {
-            return { ok: false, message: "同步失败：" + (error && error.message ? error.message : "未知错误") };
-          })
-          .then(function (result) {
-            tempToken = "";
-            return result;
+        return readRepoJSON(USERS_PATH).then(function (repoUsers) {
+          if (repoUsers.some(function (u) { return u.username === user.username; })) {
+            return { ok: true, message: "你的账号已在仓库中，任何设备都能登录，无需申请。" };
+          }
+          return readRepoJSON(PENDING_PATH).then(function (pending) {
+            const exists = pending.some(function (p) { return p.username === user.username; });
+            if (!exists) {
+              pending.push({
+                username: user.username,
+                passwordHash: user.passwordHash,
+                displayName: user.displayName || user.username,
+                role: "member",
+                bio: user.bio || "",
+                createdAt: user.createdAt || "",
+                requestedAt: Date.now()
+              });
+            }
+            return commitLocked(function () {
+              return commitFile(PENDING_PATH, JSON.stringify(pending, null, 2), "账号同步申请：" + user.username);
+            }).then(function () {
+              return {
+                ok: true,
+                message: exists
+                  ? "你的申请已在队列中，等站长批准即可。"
+                  : "申请已提交，站长批准后就能全设备登录。"
+              };
+            });
           });
+        }).catch(function (error) {
+          return { ok: false, message: "提交失败：" + (error && error.message ? error.message : "未知错误") };
+        }).then(function (result) {
+          tempToken = "";
+          return result;
+        });
       });
+  }
+
+  /* ---------- 站长审批（需要本机已保存站长 Token） ---------- */
+  // 审批区入口密钥：存哈希不存明文，校验时用 SALT + 输入 算 SHA-256 比对
+  const ADMIN_KEY_HASH = "b59a49d644208d7d6bb77eafd1ddaa23127a5c637f8f02b0ecdfe95beb6d97ec";
+
+  function checkAdminKey(input) {
+    const salt = window.EGG_USER_SALT || "";
+    return sha256Hex(salt + String(input || "")).then(function (hash) {
+      return hash === ADMIN_KEY_HASH;
+    });
+  }
+
+  function getPendingRequests() {
+    return readRepoJSON(PENDING_PATH).catch(function () { return []; });
+  }
+
+  function approveRequest(username) {
+    if (!getGithubToken()) {
+      return Promise.resolve({ ok: false, message: "本机还没有站长 Token，请先到发布面板登录并配置。" });
+    }
+    return readRepoJSON(PENDING_PATH).then(function (pending) {
+      const record = pending.find(function (p) { return p.username === username; });
+      if (!record) {
+        return { ok: false, message: "该申请不存在或已被处理。" };
+      }
+      const rest = pending.filter(function (p) { return p.username !== username; });
+      return readRepoJSON(USERS_PATH).then(function (repoUsers) {
+        const users = repoUsers.filter(function (u) { return u.username !== username; });
+        users.push(record);
+        usersCache = users;
+        return commitLocked(function () {
+          return commitFile(USERS_PATH, JSON.stringify(users, null, 2), "批准账号：" + username);
+        }).then(function () {
+          return commitLocked(function () {
+            return commitFile(PENDING_PATH, JSON.stringify(rest, null, 2), "处理申请：" + username);
+          });
+        }).then(function () {
+          return { ok: true, message: "已批准「" + (record.displayName || username) + "」，对方现在可以全设备登录了。" };
+        });
+      });
+    }).catch(function (error) {
+      return { ok: false, message: "操作失败：" + (error && error.message ? error.message : "未知错误") };
+    });
+  }
+
+  function rejectRequest(username) {
+    if (!getGithubToken()) {
+      return Promise.resolve({ ok: false, message: "本机还没有站长 Token，请先到发布面板登录并配置。" });
+    }
+    return readRepoJSON(PENDING_PATH).then(function (pending) {
+      const rest = pending.filter(function (p) { return p.username !== username; });
+      if (rest.length === pending.length) {
+        return { ok: false, message: "该申请不存在或已被处理。" };
+      }
+      return commitLocked(function () {
+        return commitFile(PENDING_PATH, JSON.stringify(rest, null, 2), "拒绝申请：" + username);
+      }).then(function () {
+        return { ok: true, message: "已拒绝「" + username + "」的申请。" };
+      });
+    }).catch(function (error) {
+      return { ok: false, message: "操作失败：" + (error && error.message ? error.message : "未知错误") };
+    });
   }
 
   /* ---------- 登录 / 会话 ---------- */
@@ -949,7 +1071,7 @@
           return {
             ok: true,
             profile: profile,
-            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板点「同步我的账号」，即可全设备登录。"
+            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板点「申请同步账号」，站长批准后即可全设备登录。"
           };
         }
         return commitUsers().then(function () {
@@ -1091,6 +1213,10 @@
     publishSyncToken: publishSyncToken,
     revokeSyncToken: revokeSyncToken,
     selfSyncAccount: selfSyncAccount,
+    checkAdminKey: checkAdminKey,
+    getPendingRequests: getPendingRequests,
+    approveRequest: approveRequest,
+    rejectRequest: rejectRequest,
     logout: logout,
     getSession: getSession,
     getSavedProfile: getSavedProfile,

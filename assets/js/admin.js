@@ -765,8 +765,88 @@
     }
   }
 
+  /* ---------- 站长审批：密钥解锁 + 申请列表 ---------- */
+  function setupApprovals() {
+    if (page !== "admin") return;
+
+    const gate = $("[data-key-gate]");
+    const panel = $("[data-pending-panel]");
+    const unlockBtn = $("[data-key-unlock]");
+    const keyInput = $("#admin-key");
+    const keyMessage = $("[data-key-message]");
+    const list = $("[data-pending-list]");
+    const listMessage = $("[data-pending-message]");
+    if (!gate || !panel || !unlockBtn || !keyInput) return;
+
+    function renderPending() {
+      if (!list) return;
+      list.innerHTML = '<div class="manage-empty"><strong>读取中…</strong></div>';
+      STORE.getPendingRequests().then(function (pending) {
+        if (!pending.length) {
+          list.innerHTML = '<div class="manage-empty"><strong>没有待审批的申请</strong><p>访客提交账号同步申请后会出现在这里。</p></div>';
+          return;
+        }
+        list.innerHTML = pending
+          .map(function (item, index) {
+            const time = item.requestedAt
+              ? new Date(item.requestedAt).toLocaleString("zh-CN", { hour12: false })
+              : "";
+            return [
+              '<div class="manage-item">',
+              '<span class="manage-number">', pad(index + 1), "</span>",
+              '<div class="manage-main"><strong>', escapeHTML(item.displayName || item.username), "</strong>",
+              "<span>", escapeHTML(item.username), (time ? " · " + escapeHTML(time) : ""), "</span></div>",
+              '<button class="manage-open" type="button" data-approve="', escapeHTML(item.username), '">批准</button>',
+              '<button class="manage-delete" type="button" data-reject="', escapeHTML(item.username), '">拒绝</button>',
+              "</div>"
+            ].join("");
+          })
+          .join("");
+      });
+    }
+
+    unlockBtn.addEventListener("click", function () {
+      unlockBtn.disabled = true;
+      STORE.checkAdminKey(keyInput.value).then(function (ok) {
+        unlockBtn.disabled = false;
+        if (!ok) {
+          setMessage(keyMessage, "密钥不正确。", "error");
+          keyInput.select();
+          return;
+        }
+        gate.hidden = true;
+        panel.hidden = false;
+        renderPending();
+      });
+    });
+
+    keyInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        unlockBtn.click();
+      }
+    });
+
+    if (list) {
+      list.addEventListener("click", function (event) {
+        const approveBtn = event.target.closest("[data-approve]");
+        const rejectBtn = event.target.closest("[data-reject]");
+        const btn = approveBtn || rejectBtn;
+        if (!btn) return;
+        const username = btn.dataset.approve || btn.dataset.reject;
+        btn.disabled = true;
+        const action = approveBtn ? STORE.approveRequest(username) : STORE.rejectRequest(username);
+        action.then(function (result) {
+          setMessage(listMessage, result.message, result.ok ? "success" : "error");
+          renderPending();
+        });
+      });
+    }
+  }
+
   setupAuthTabs();
   setupLogin();
   setupRegister();
+  setupApprovals();
   setupDashboard();
 })();
