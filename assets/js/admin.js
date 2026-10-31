@@ -607,18 +607,28 @@
       });
     }
 
-    // 站长设置同步口令
+    // 站长开启/关闭访客自助同步
     const passBtn = $("[data-pass-save]");
     if (passBtn) {
       passBtn.addEventListener("click", function () {
-        const pass = form.elements.passphrase.value.trim();
         passBtn.disabled = true;
-        passBtn.textContent = "保存中…";
-        STORE.setSyncPassphrase(pass).then(function (result) {
+        passBtn.textContent = "开启中…";
+        STORE.publishSyncToken().then(function (result) {
           passBtn.disabled = false;
-          passBtn.textContent = "保存同步口令";
+          passBtn.textContent = "开启自助同步";
           setMessage(message, result.message, result.ok ? "success" : "error");
-          if (result.ok) form.elements.passphrase.value = "";
+        });
+      });
+    }
+    const revokeBtn = $("[data-pass-revoke]");
+    if (revokeBtn) {
+      revokeBtn.addEventListener("click", function () {
+        revokeBtn.disabled = true;
+        revokeBtn.textContent = "关闭中…";
+        STORE.revokeSyncToken().then(function (result) {
+          revokeBtn.disabled = false;
+          revokeBtn.textContent = "关闭自助同步";
+          setMessage(message, result.message, result.ok ? "success" : "error");
         });
       });
     }
@@ -706,11 +716,9 @@
         const selfBtn = $("[data-self-sync]", memberSync);
         if (selfBtn) {
           selfBtn.addEventListener("click", function () {
-            const pass = window.prompt("请输入站长告诉你的同步口令：");
-            if (pass === null) return;
             selfBtn.disabled = true;
             selfBtn.textContent = "同步中…";
-            STORE.selfSyncAccount(pass.trim()).then(function (result) {
+            STORE.selfSyncAccount().then(function (result) {
               selfBtn.disabled = false;
               selfBtn.textContent = "同步我的账号";
               setMessage(syncMessage, result.message, result.ok ? "success" : "error");
