@@ -135,28 +135,27 @@
 
       if (submit) {
         submit.disabled = true;
-        submit.textContent = "正在注册…";
+        submit.textContent = "正在提交…";
       }
 
       STORE.register(account, password, displayName).then(function (result) {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = "提交注册申请";
+        }
         if (!result.ok) {
           setMessage(message, result.message, "error");
-          if (submit) {
-            submit.disabled = false;
-            submit.textContent = "注册并进入";
-          }
           return;
         }
 
-        setMessage(message, "注册成功，正在进入发布面板…", "success");
-        window.setTimeout(function () {
-          window.location.href = "dashboard.html";
-        }, 350);
+        // 注册收紧后：不再自动登录，等待站长批准
+        form.reset();
+        setMessage(message, result.message + " 批准后回到本页登录即可。", "success");
       }).catch(function () {
         setMessage(message, "注册失败，请稍后再试。", "error");
         if (submit) {
           submit.disabled = false;
-          submit.textContent = "注册并进入";
+          submit.textContent = "提交注册申请";
         }
       });
     });

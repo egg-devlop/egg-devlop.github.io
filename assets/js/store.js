@@ -1085,6 +1085,7 @@
     );
   }
 
+  // 注册 = 提交申请：直接进待审批队列，站长批准后才能登录
   function register(identifier, password, displayName) {
     return loadData().catch(function () { return null; }).then(function () {
       const username = String(identifier || "").trim();
@@ -1100,57 +1101,50 @@
         return { ok: false, message: "该账号已存在，请直接登录或换一个。" };
       }
 
-      const salt = window.EGG_USER_SALT || "";
-      return sha256Hex(salt + String(password)).then(function (hash) {
-        const user = {
-          username: username,
-          passwordHash: hash,
-          displayName: name,
-          role: "member",
-          bio: "",
-          createdAt: new Date().toISOString().slice(0, 10),
-          registered: true
-        };
+      // 读取自助同步 Token
+      return fetch(SYNC_PATH + "?t=" + Date.now(), { cache: "no-store" })
+        .then(function (response) {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.json();
+        })
+        .catch(function () { return null; })
+        .then(function (syncRecord) {
+          const token = syncRecord && syncRecord.data ? decodeSyncToken(syncRecord) : "";
+          if (!token) {
+            return { ok: false, message: "站长暂未开放注册申请，请稍后再试或联系站长。" };
+          }
 
-        const result = writeArray(USERS_KEY, getRegisteredUsers().concat(user));
-        if (!result.ok) {
-          return { ok: false, message: result.message || "注册失败，请稍后再试。" };
-        }
+          return readRepoJSON(PENDING_PATH).then(function (pending) {
+            if (pending.some(function (p) { return p.username === username; })) {
+              return { ok: false, message: "该账号已提交过申请，正在等待站长批准。" };
+            }
 
-        const profile = {
-          username: user.username,
-          displayName: user.displayName,
-          role: user.role,
-          bio: user.bio,
-          createdAt: user.createdAt,
-          loginAt: Date.now()
-        };
+            const salt = window.EGG_USER_SALT || "";
+            return sha256Hex(salt + String(password)).then(function (hash) {
+              pending.push({
+                username: username,
+                passwordHash: hash,
+                displayName: name,
+                role: "member",
+                bio: "",
+                createdAt: new Date().toISOString().slice(0, 10),
+                requestedAt: Date.now()
+              });
 
-        try {
-          window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-          window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-        } catch (error) {
-          return { ok: false, message: "无法保存登录状态，请检查浏览器设置。" };
-        }
-
-        // 有 Token 时把账号同步到仓库，其他设备也能登录
-        if (!hasGithubToken()) {
-          return {
-            ok: true,
-            profile: profile,
-            warning: "账号已创建并登录，但目前只保存在本机。请到发布面板点「申请同步账号」，站长批准后即可全设备登录。"
-          };
-        }
-        return commitUsers().then(function () {
-          return { ok: true, profile: profile };
-        }).catch(function (error) {
-          return {
-            ok: true,
-            profile: profile,
-            warning: "账号已创建并登录，但同步到仓库失败：" + (error && error.message ? error.message : "未知错误")
-          };
+              tempToken = token;
+              return commitLocked(function () {
+                return commitFile(PENDING_PATH, JSON.stringify(pending, null, 2), "注册申请：" + username);
+              }).then(function () {
+                return { ok: true, pending: true, message: "注册申请已提交，站长批准后即可登录。" };
+              }).catch(function (error) {
+                return { ok: false, message: "提交申请失败：" + (error && error.message ? error.message : "未知错误") };
+              }).then(function (result) {
+                tempToken = "";
+                return result;
+              });
+            });
+          });
         });
-      });
     });
   }
 
