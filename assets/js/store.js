@@ -923,15 +923,6 @@
     return out;
   }
 
-  // 本地已注册但还没同步到仓库的账号
-  function getUnsyncedUsers() {
-    const repoNames = {};
-    getRepoUsers().forEach(function (user) { repoNames[user.username] = true; });
-    return getSyncableUsers().filter(function (user) {
-      return !repoNames[user.username];
-    });
-  }
-
   function commitUsers() {
     if (!hasGithubToken()) {
       return Promise.reject(new Error("未配置 GitHub Token"));
@@ -1136,8 +1127,6 @@
     removeResource: removeResource,
     login: login,
     register: register,
-    commitUsers: commitUsers,
-    getUnsyncedUsers: getUnsyncedUsers,
     publishSyncToken: publishSyncToken,
     revokeSyncToken: revokeSyncToken,
     checkAdminKey: checkAdminKey,
