@@ -689,7 +689,7 @@
 
   /* ---------- 站长审批：密钥解锁 + 申请列表 ---------- */
   function setupApprovals() {
-    if (page !== "admin") return;
+    if (page !== "adminview") return;
 
     const gate = $("[data-key-gate]");
     const panel = $("[data-pending-panel]");
@@ -705,7 +705,7 @@
       list.innerHTML = '<div class="manage-empty"><strong>读取中…</strong></div>';
       STORE.getPendingRequests().then(function (pending) {
         if (!pending.length) {
-          list.innerHTML = '<div class="manage-empty"><strong>没有待审批的申请</strong><p>访客提交账号同步申请后会出现在这里。</p></div>';
+          list.innerHTML = '<div class="manage-empty"><strong>没有待审批的申请</strong><p>访客提交注册申请后会出现在这里。</p></div>';
           return;
         }
         list.innerHTML = pending
