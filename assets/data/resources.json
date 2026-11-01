@@ -1,5 +1,20 @@
 [
   {
+    "id": "file-mvxtdod6v2kvp",
+    "name": "去除老师控制（需关小声音，此程序内含有Beep函数）",
+    "category": "学习充电",
+    "desc": "没啥，懒憋",
+    "fileName": "main.exe",
+    "fileSize": 17920,
+    "fileType": "application/x-msdos-program",
+    "type": "EXE · 17.5 KB",
+    "icon": "book",
+    "author": "eggdevlop@163.com",
+    "authorName": "蛋站长",
+    "createdAt": 1793536593307,
+    "filePath": "assets/resources/file-mvxtdod6v2kvp-main.exe"
+  },
+  {
     "id": "file-mvmalsl0ol1te",
     "name": "ADB（Google正版）",
     "category": "开发工具",
