@@ -1,5 +1,31 @@
 [
   {
+    "id": "post-mvxtkckbnbd66",
+    "title": "去除老师控制程序使用指南",
+    "category": "生活方式",
+    "date": "2026-11-01",
+    "dateLabel": "2026.11.01",
+    "readTime": 3,
+    "accent": "#5f9c84",
+    "soft": "#e9f3ee",
+    "art": "dots",
+    "excerpt": "一篇文章告诉你：它更新了什么，怎么用。",
+    "quote": "",
+    "content": [
+      "更新：",
+      "v1.0.0 这是第一个更新。对于极域管理系统及附属软件有效。",
+      "方式：",
+      "v1.0.0 打开后自动杀毒，后附有倒计时。请关小声音！"
+    ],
+    "images": [
+      "assets/uploads/posts/post-mvxtkckbnbd66-1-1000083117.jpg"
+    ],
+    "cover": "assets/uploads/posts/post-mvxtkckbnbd66-1-1000083117.jpg",
+    "author": "eggdevlop@163.com",
+    "authorName": "蛋站长",
+    "createdAt": 1793536904603
+  },
+  {
     "id": "post-mvlx38yr8zxa1",
     "title": "代码之外，是执念",
     "category": "随笔",
