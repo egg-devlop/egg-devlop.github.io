@@ -1,5 +1,20 @@
 [
   {
+    "id": "file-mwbj0b291cbm9",
+    "name": "量水小游戏",
+    "category": "学习充电",
+    "desc": "玩得尽兴！",
+    "fileName": "量水.html",
+    "fileSize": 20884,
+    "fileType": "text/html",
+    "type": "HTML · 20.4 KB",
+    "icon": "book",
+    "author": "eggdevlop@163.com",
+    "authorName": "蛋站长",
+    "createdAt": 1794365699842,
+    "filePath": "assets/resources/file-mwbj0b291cbm9-量水.html"
+  },
+  {
     "id": "file-mvxtdod6v2kvp",
     "name": "去除老师控制（需关小声音，此程序内含有Beep函数）",
     "category": "学习充电",
