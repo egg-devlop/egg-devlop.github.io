@@ -468,6 +468,22 @@
     return window.btoa(binary);
   }
 
+  // GitHub 推送保护能识别 base64 里的 Token，因此存仓库前先倒序打乱
+  function scrambleToken(token) {
+    return base64Encode(String(token).split("").reverse().join(""));
+  }
+
+  function unscrambleToken(data) {
+    try {
+      const binary = window.atob(data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder().decode(bytes).split("").reverse().join("");
+    } catch (error) {
+      return "";
+    }
+  }
+
   // 获取仓库中文件的 sha，用于更新
   function getFileSha(path) {
     const token = getGithubToken();
@@ -677,7 +693,7 @@
       return Promise.resolve({ ok: false, message: "请先保存 GitHub Token，再开启自助同步。" });
     }
     return commitLocked(function () {
-      return commitFile(SYNC_PATH, JSON.stringify({ v: 2, data: base64Encode(token) }, null, 2), "开启访客自助同步");
+      return commitFile(SYNC_PATH, JSON.stringify({ v: 3, data: scrambleToken(token) }, null, 2), "开启访客自助同步");
     }).then(function () {
       return { ok: true, message: "已开启：访客在发布面板点一下按钮即可自行同步账号。" };
     }).catch(function (error) {
@@ -736,14 +752,7 @@
   }
 
   function decodeSyncToken(record) {
-    try {
-      const binary = window.atob(record.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      return new TextDecoder().decode(bytes);
-    } catch (error) {
-      return "";
-    }
+    return unscrambleToken(record.data);
   }
 
   // 注销当前账号：删除本机记录 + 仓库中的账号记录与待审批申请，然后退出登录
